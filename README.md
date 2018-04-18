@@ -2,7 +2,7 @@ This tool has been tested with ghc version 8.2.2.
 
 This project is a refactoring tool for a subset of Agda called Baby-Agda. For details on the refactorings, run the program with the --help flag. Baby-Agda has the following syntax:
 
-<h1>Identifiers
+<h1>Identifiers</h1>
 
 Baby-Agda identifiers mostly correspond to Agda name parts. The only reserved words are "import", "-> ", "where", "=", "?", ":" and integer literals, which are handled separately. Identifiers must not start with "-{}-".
 
