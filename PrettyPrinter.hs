@@ -27,7 +27,7 @@ printParseTree (FunctionDefinition {definitionOf, params, body}) =
 printParseTree (DataStructure {dataName, parameters, indexInfo, constructors}) =
   makeLine $ ("data" : dataName : (concat $ map signatureInBrackets parameters)) ++
   [":"] ++
-  (printType indexInfo) ++
+  (printType indexInfo False) ++
 
   ["where\n"] ++
   (map (makeLine . (:) "    " . printSignature) constructors)
@@ -40,7 +40,7 @@ signatureInBrackets x = ("(" : (printSignature x)) ++ [")"]
 printSignature :: TypeSignature -> [Text]
 printSignature (TypeSignature {funcName, funcType, comments = (x:y:rest)}) =
   (funcName : map printComment x) ++ [":" ] ++ (map printComment y) ++
-   (printType funcType)
+   (printType funcType False)
 
 printExpr :: Expr -> [Text]
 printExpr expr =
@@ -55,8 +55,8 @@ addBrackets (FunctionApp {function , argument}) =
             ("(" : printExpr function) ++ printExpr argument ++ [")"]
 addBrackets anything = printExpr anything
 
-printType :: Type -> [Text]
-printType t =
+printType :: Type -> Bool -> [Text]
+printType t wantBrackets =
   case t of
     Type {expression} -> printExpr expression
     ImplicitArgument { impArg} ->
@@ -64,7 +64,9 @@ printType t =
     ExplicitArgument { expArg} ->
       ("(" : printSignature expArg) ++ [")"]
     FunctionType { input, output } ->
-      (printType input) ++ ("->" : printType output)
+      if wantBrackets
+      then ["("] ++ (printType input True) ++ ("->" : printType output True) ++ [")"]
+      else (printType input True) ++ ("->" : printType output True)
 
 printPragma :: Pragma -> [Text]
 printPragma (Builtin {concept, definition})=

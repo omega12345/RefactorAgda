@@ -1,1 +1,3 @@
 dist
+Test/Tests/output/*.agda
+Test/Tests/output/*.agdai

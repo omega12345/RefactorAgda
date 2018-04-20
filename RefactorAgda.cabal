@@ -17,8 +17,16 @@ cabal-version:       >=1.10
 
 executable RefactorAgda
   main-is:             RefactorAgda.hs
-  -- other-modules:
+  other-modules:       Brackets, ParseTree, Parser, PrettyPrinter, Refactoring
   other-extensions:    FlexibleContexts, NamedFieldPuns, OverloadedStrings, DuplicateRecordFields, DeriveDataTypeable
   build-depends:       base >=4.10 && <4.11, megaparsec >=6.4 && <6.5, text >=1.2 && <1.3, cmdargs >=0.10 && <0.11
   -- hs-source-dirs:
+  default-language:    Haskell2010
+
+
+Test-Suite test-RefactorAgda
+  type: detailed-0.9
+  test-module: Test.TestDriver
+  other-modules:       Brackets, ParseTree, Parser, PrettyPrinter, Refactoring
+  build-depends: base, Cabal >= 1.9.2, directory >= 1.3, megaparsec >=6.4 && <6.5, text >=1.2 && <1.3, cmdargs >=0.10 && <0.11, process >= 1.6.3
   default-language:    Haskell2010

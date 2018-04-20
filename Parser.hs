@@ -183,7 +183,7 @@ functionType sc =
   (try (typeParser sc) <|> try (implicitArgParser sc) <|> (explicitArgParser sc))
   arrowTable
   where arrowTable :: [[Operator Parser Type]]
-        arrowTable = [[InfixL $ FunctionType <$ try arrowParser]]
+        arrowTable = [[InfixR $ FunctionType <$ try arrowParser]]
         --this one now returns failure on a -> \na, therefore causing only a to be parsed.
         --Hopefully resolved when parsers are combined.
         arrowParser :: Parser ()

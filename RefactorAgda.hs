@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE NamedFieldPuns #-}
+module RefactorAgda where
 import System.Environment
 
 import Parser
@@ -25,7 +26,7 @@ reindentFunction = ReindentFunction {file = def &= argPos 0 &= typFile
 
 debug = Debug {file = def &= argPos 0 &= typFile} &= help "Print the parse tree, for debugging"
 
-allModes = cmdArgsMode $ modes [Main.reindentFile, Main.reindentFunction, debug, Help &= auto &= help "Triggers helpful hint"] &= summary "The Agda refactoring program v0.1" &= program "RefactorAgda"
+allModes = cmdArgsMode $ modes [RefactorAgda.reindentFile, RefactorAgda.reindentFunction, debug, Help &= auto &= help "Triggers helpful hint"] &= summary "The Agda refactoring program v0.1" &= program "RefactorAgda"
 
 main = do
   command <- cmdArgsRun allModes
