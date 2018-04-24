@@ -50,28 +50,28 @@ pragmaParser = do
   space1
   string "#-}"
   z <- getTokensProcessed
-  return $ Pragma (Builtin (pack concept) definition) $ Range a z False
+  return $ Pragma (Builtin (pack concept) definition) $ Range (toInteger a) (toInteger z) False
 
 signatureParser :: Parser ParseTree
 signatureParser = do
   a <- getTokensProcessed
   content <- L.lineFold skipTopLevelComments typeSignature
   z <- getTokensProcessed
-  return $ Signature content $ Range a z False
+  return $ Signature content $ Range (toInteger a) (toInteger z) False
 
 dataStructureParser :: Parser ParseTree
 dataStructureParser = do
   a <- getTokensProcessed
   content <- L.indentBlock skipTopLevelComments constructorBlock
   z <- getTokensProcessed
-  return $ content{range = Range a z False}
+  return $ content{range = Range (toInteger a) (toInteger z) False}
 
 functionDefinitionParser :: Parser ParseTree
 functionDefinitionParser = do
   a <- getTokensProcessed
   content <- L.lineFold skipTopLevelComments functionDefinition
   z <- getTokensProcessed
-  return $ content{range = Range a z False}
+  return $ content{range = Range (toInteger a) (toInteger z) False}
 
 -- Function definition parsing
 functionDefinition :: Parser () -> Parser ParseTree
@@ -158,7 +158,7 @@ hole = questionMark <|>
 numLit :: Parser Expr
 numLit = do
   x <- potentialNamePart
-  case (readMaybe $ unpack x) :: Maybe Int of
+  case (readMaybe $ unpack x) :: Maybe Integer of
     Nothing -> fail $ unpack x ++ "is not an int literal"
     Just y -> return $ NumLit y
 

@@ -3,3 +3,12 @@ Test/Tests/output/*.agda
 Test/Tests/output/*.agdai
 .cabal-sandbox
 cabal.sandbox.config
+MAlonzo
+.ghc.environment.x86_64-darwin-8.2.2
+*.agdai
+*.hi
+*.o
+ParseHaskellData.hs
+PrintAgdaData.hs
+TranslateHaskellData.hs
+dist-newstyle

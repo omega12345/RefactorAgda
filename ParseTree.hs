@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+
 module ParseTree where
 import Data.Text
 data ParseTree = Signature { signature :: TypeSignature
@@ -25,7 +26,7 @@ data TypeSignature = TypeSignature { funcName :: Text
                                    } deriving Show
 
 data Expr = Ident {name :: Text}
-          | NumLit {value :: Int}
+          | NumLit {value :: Integer}
           | Hole {textInside :: Text}
           | FunctionApp { function :: Expr
                         , argument :: Expr
@@ -38,8 +39,8 @@ data Type = Type { expression :: Expr }
                            , output :: Type
                            } deriving Show
 
-data Range = Range { lastUnaffected :: Int
-                   , lastAffected :: Int
+data Range = Range { lastUnaffected :: Integer
+                   , lastAffected :: Integer
                    , needsUpdating :: Bool
                    } deriving Show
 

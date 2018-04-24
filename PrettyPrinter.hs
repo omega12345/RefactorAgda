@@ -11,8 +11,8 @@ prettyPrint newTree oldCode = foldr replaceSection oldCode newTree
 replaceSection :: ParseTree -> Text -> Text
 replaceSection section inText =
   let r = range section
-      before = T.take (lastUnaffected r) inText
-      after = T.drop (lastAffected r) inText
+      before = T.take (fromInteger $ lastUnaffected r) inText
+      after = T.drop (fromInteger $ lastAffected r) inText
   in if (needsUpdating r)
      then (T.concat [before, (printParseTree section), after])
      else inText

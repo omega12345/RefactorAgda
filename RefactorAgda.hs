@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE NamedFieldPuns #-}
-
+{-# LANGUAGE OverloadedStrings #-}
 import System.Environment
 
 import Parser
@@ -8,8 +8,9 @@ import Data.Text as T
 import Data.Text.IO as IO
 import ParseTree
 import PrettyPrinter
-import Refactoring
+--import Refactoring
 import System.Console.CmdArgs
+import MAlonzo.Code.Refactoring as Refactoring
 
 data Modes = ReindentFile {file :: String}
             | ReindentFunction {file :: String
@@ -37,7 +38,7 @@ main = do
      fileContents <- IO.readFile filename
      case command of
 
-      Debug _ -> Prelude.putStrLn $ show $ parse fileContents
+      Debug _ -> Prelude.putStrLn $ show $  parse fileContents
       _ -> IO.putStrLn $
         prettyPrint (doRefactoring command (parse fileContents)) fileContents
 
