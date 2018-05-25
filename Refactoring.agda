@@ -14,7 +14,8 @@ setNeedsUpdating (signature x x₁) = signature x (updateRange x₁)
 setNeedsUpdating (functionDefinition x x₁ x₂ x₃) = functionDefinition x x₁ x₂ (updateRange x₃)
 setNeedsUpdating (dataStructure x x₁ x₂ x₃ x₄) = dataStructure x x₁ x₂ x₃ (updateRange x₄)
 setNeedsUpdating (pragma x x₁) = pragma x (updateRange x₁)
-
+setNeedsUpdating (openImport x x₁ x₂ x₃) = openImport x x₁ x₂ (updateRange x₃)
+setNeedsUpdating (moduleName x x₁) = moduleName x (updateRange x₁)
 
 
 reindentFunc : String -> ParseTree -> ParseTree
@@ -24,14 +25,14 @@ reindentFunc name a@(functionDefinition definitionOf _ _ _) =
   if name == definitionOf then setNeedsUpdating a else a
 reindentFunc _ x = x
 
-
-
 -- reindents all constructs without making changes.
 reindentFile : List ParseTree -> List ParseTree
 reindentFile code = map setNeedsUpdating code
 
 reindentFunction : String -> List ParseTree -> List ParseTree
 reindentFunction text code = map (reindentFunc text) code
+
+-- renameParameter : String -> String -> List ParseTree -> List ParseTree
 
 {-# COMPILE GHC doNothing as doNothing #-}
 {-# COMPILE GHC reindentFile as reindentFile #-}

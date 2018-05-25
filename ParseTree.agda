@@ -4,19 +4,6 @@ open import Data.Nat
 open import Data.Bool
 open import Data.List
 {-# FOREIGN GHC import ParseTree #-}
-{-
-data Comment : Set where
- lineComment : String -> Comment
- multiLineComment : String -> Comment
-
-{-# COMPILE GHC Comment = data Comment
-( LineComment
-| MultiLineComment
-) #-}
-
-getContent : Comment -> String
-getContent (lineComment x) = x
-getContent (multiLineComment x) = x -}
 
 data ParseTree : Set
 data TypeSignature : Set
@@ -32,12 +19,16 @@ data ParseTree where
   functionDefinition : String -> List Expr -> Expr -> Range -> ParseTree
   dataStructure : String -> List TypeSignature -> Type -> List TypeSignature -> Range -> ParseTree
   pragma : Pragma -> Range -> ParseTree
+  openImport : Bool -> Bool -> List String -> Range -> ParseTree
+  moduleName : List String -> Range -> ParseTree
 
 {-# COMPILE GHC ParseTree = data ParseTree
 ( Signature
 | FunctionDefinition
 | DataStructure
 | Pragma
+| OpenImport
+| ModuleName
 ) #-}
 
 data TypeSignature where

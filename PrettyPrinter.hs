@@ -3,6 +3,7 @@
 module PrettyPrinter (prettyPrint) where
 import Data.Text (Text, append, pack, intercalate)
 import qualified Data.Text as T
+import qualified Data.List as List
 import ParseTree
 
 prettyPrint :: [ParseTree] -> Text -> Text
@@ -32,6 +33,12 @@ printParseTree (DataStructure {dataName, parameters, indexInfo, constructors}) =
   ["where\n"] ++
   (map (makeLine . (:) "    " . printSignature) constructors)
 printParseTree (Pragma {pragma}) = makeLine $ printPragma pragma
+printParseTree (OpenImport { opened, imported, moduleName}) =
+  makeLine $ filter (\x -> x /="")
+  [(if opened then "open" else ""), (if imported then "import" else ""),
+  T.concat $ List.intersperse "." moduleName]
+printParseTree (ModuleName { moduleName}) =
+  makeLine $ ["module", T.concat $ List.intersperse "." moduleName , "where"]
 
 signatureInBrackets :: TypeSignature -> [Text]
 signatureInBrackets x = ("(" : (printSignature x)) ++ [")"]

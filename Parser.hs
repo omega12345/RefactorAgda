@@ -28,8 +28,9 @@ type Parser = ParsecT Void Text Identity
 
 noIndent :: Parser ParseTree
 noIndent = L.nonIndented skipTopLevelComments $
-      pragmaParser <|> dataStructureParser
-      <|> (try signatureParser) <|> functionDefinitionParser
+      (try pragmaParser) <|> (try dataStructureParser)
+      <|> (try signatureParser) <|> (try openImportParser)<|>
+      (try moduleNameParser) <|> functionDefinitionParser
 
 manyDefs :: Parser [ParseTree]
 manyDefs = do skipTopLevelComments -- remove space at top of file
@@ -67,11 +68,50 @@ dataStructureParser = do
   return $ content{range = Range (toInteger a) (toInteger z) False}
 
 functionDefinitionParser :: Parser ParseTree
-functionDefinitionParser = do
+functionDefinitionParser = lineFoldAndRange functionDefinition
+
+openImportParser :: Parser ParseTree
+openImportParser = lineFoldAndRange openImport
+
+moduleNameParser :: Parser ParseTree
+moduleNameParser = lineFoldAndRange parseModuleName
+
+lineFoldAndRange :: (Parser () -> Parser ParseTree) -> Parser ParseTree
+lineFoldAndRange parser = do
   a <- getTokensProcessed
-  content <- L.lineFold skipTopLevelComments functionDefinition
+  content <- L.lineFold skipTopLevelComments parser
   z <- getTokensProcessed
   return $ content{range = Range (toInteger a) (toInteger z) False}
+
+-- parsing open and import statements
+openImport :: Parser () -> Parser ParseTree
+openImport sc = try openAndImport <|> try importOnly <|> openOnly
+  where openOnly = do string "open"
+                      sc
+                      name <- qualifiedName
+                      return OpenImport { opened = True, imported = False, moduleName = name}
+        importOnly = do
+                            string "import"
+                            sc
+                            name <- qualifiedName
+                            return OpenImport { opened = False, imported = True, moduleName = name}
+        openAndImport = do
+          string "open"
+          sc
+          string "import"
+          sc
+          name <- qualifiedName
+          return OpenImport { opened = True, imported = True, moduleName = name}
+
+
+parseModuleName :: Parser () -> Parser ParseTree
+parseModuleName sc = do
+  string "module"
+  sc
+  name <- qualifiedName
+  sc
+  string "where"
+  return ModuleName {moduleName = name}
 
 -- Function definition parsing
 functionDefinition :: Parser () -> Parser ParseTree
@@ -216,9 +256,15 @@ anyArgParser opening closing constructor sc = do
 namePart :: Parser Text
 namePart = do
   x <- potentialNamePart
-  if elem x ["import", "->", "where", "=", "?", ":"] || isPrefixOf "--" x
+  if elem x  keywords || isPrefixOf "--" x
   then fail $ (unpack x) ++ " is a reserved word and can't be used as a name part."
   else return x
+
+keywords :: [Text]
+keywords = T.words " = | -> : ? \\ → ∀ λ abstract constructor data field forall hiding import in infix infixl infixr let module mutual open postulate primitive Prop private public quoteGoal quoteTerm quote record renaming rewrite syntax unquote using where with "
+
+qualifiedName :: Parser [Text]
+qualifiedName = sepBy namePart (string ".")
 
 potentialNamePart :: Parser Text
 potentialNamePart = do

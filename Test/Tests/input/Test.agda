@@ -1,4 +1,6 @@
 -- a few random examples
+module Test where
+import Data.Bool
 
 data Nat : Set where
   zero : Nat -- Comment which gets eaten

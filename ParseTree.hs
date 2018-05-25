@@ -18,7 +18,15 @@ data ParseTree = Signature { signature :: TypeSignature
                                }
               |  Pragma { pragma :: Pragma
                         , range :: Range
-                        } deriving Show
+                        }
+              |  OpenImport { opened :: Bool
+                            , imported :: Bool
+                            , moduleName :: [Text]
+                            , range :: Range
+                            }
+              |  ModuleName { moduleName :: [Text]
+                            , range :: Range } deriving Show
+
 
 data TypeSignature = TypeSignature { funcName :: Text
                                    , funcType :: Type
