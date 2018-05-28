@@ -9,7 +9,7 @@ This project is a refactoring tool for a subset of Agda called Baby-Agda. For de
 
 <h2>Identifiers</h2>
 
-Baby-Agda identifiers mostly correspond to Agda name parts. The only reserved words are "import", "-> ", "where", "=", "?", ":" and integer literals, which are handled separately. Identifiers must not start with "--".
+Baby-Agda identifiers correspond to Agda name parts, including reserved words.
 
 <h2>Comments</h2>
 
