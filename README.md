@@ -5,7 +5,7 @@ Run make before installing with cabal in order to compile the Agda files.
 
 <h1>RefactorAgda</h2>
 
-This project is a refactoring tool for a subset of Agda called Baby-Agda. For details on the refactorings, run the program with the --help flag. Baby-Agda has the following syntax:
+This project is a refactoring tool for a subset of Agda called Baby-Agda. Baby-Agda has the following syntax:
 
 <h2>Identifiers</h2>
 
