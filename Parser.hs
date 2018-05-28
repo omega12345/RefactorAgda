@@ -63,9 +63,12 @@ signatureParser = do
 dataStructureParser :: Parser ParseTree
 dataStructureParser = do
   a <- getTokensProcessed
-  content <- L.indentBlock skipTopLevelComments constructorBlock
+  let parseEmptyDataStructure = L.lineFold skipTopLevelComments dataDefinition
+  let item = L.lineFold space typeSignature
+  (emptyDataStructure, constructors) <-
+    doBlockLikeStructure parseEmptyDataStructure item False skipTopLevelComments
   z <- getTokensProcessed
-  return $ content{range = Range (toInteger a) (toInteger z) False}
+  return $ emptyDataStructure {constructors = constructors, range = Range (toInteger a) (toInteger z) False}
 
 functionDefinitionParser :: Parser ParseTree
 functionDefinitionParser = lineFoldAndRange functionDefinition
@@ -160,14 +163,6 @@ dataDefinition sc = do
           sc
           string ")"
           return x
-
--- The general idea is to first parse the definition part of the
--- data declaration and then use it as the reference point
--- beyond which the constructors must be indented.
-constructorBlock :: Parser (L.IndentOpt Parser ParseTree TypeSignature)
-constructorBlock = do
-  dataType <- dataDefinition space
-  return $ L.IndentMany Nothing (\x -> return $ dataType{constructors=x}) $ L.lineFold space typeSignature
 
 -- Type signature parsing
 

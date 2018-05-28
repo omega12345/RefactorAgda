@@ -7,6 +7,8 @@ import Text.Megaparsec.Expr
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Text
+import Text.Megaparsec.Char as C
+import Text.Megaparsec.Char.Lexer
 
 makeExprParserWithBrackets ::
   MonadParsec e s m => m b -> m c -> m d -> m a -> [[Operator m a]] -> m a
@@ -26,3 +28,30 @@ makeExprParserWithParens ::
 makeExprParserWithParens = makeExprParserWithBrackets
                            (string "(")
                            (string ")")
+
+doBlockLikeStructure :: MonadParsec e s m => m a -> m b -> Bool -> m () -> m (a, [b])
+doBlockLikeStructure doPart item atLeastOneItem space = do
+  beforeDo <- indentLevel
+  doResult <- doPart
+  space --move until the start of whatever is in the do block
+  indent <- indentLevel
+  if indent > beforeDo
+  then do foundItems <- itemsAtLevel (unPos indent) atLeastOneItem item space
+          return (doResult, foundItems)
+  else return (doResult, [])
+
+itemsAtLevel :: MonadParsec e s m => Int -> Bool -> m a -> m () -> m [a]
+--switch between many and some here to control whether items are needed
+itemsAtLevel level atLeastOneItem item space =
+  let line = try $ itemAtLevel level item space
+  in if atLeastOneItem
+      then some line
+      else many line
+
+itemAtLevel :: MonadParsec e s m => Int -> m a -> m () -> m a
+itemAtLevel level item space = do
+                       space --eat any whitespace
+                       currentIndent <- indentLevel
+                       if (unPos currentIndent) == level
+                       then item
+                       else incorrectIndent EQ (mkPos level) currentIndent

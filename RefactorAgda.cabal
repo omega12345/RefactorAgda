@@ -91,7 +91,7 @@ executable RefactorAgda
                                                                                                  MAlonzo.Code.Relation.Nullary.Negation,
                                                                                                  MAlonzo.RTE
   other-extensions:    FlexibleContexts, NamedFieldPuns, OverloadedStrings, DuplicateRecordFields, DeriveDataTypeable
-  build-depends:       base >=4.10 && <4.11, megaparsec >=6.4 && <6.5, text >=1.2 && <1.3, ieee, ghc-prim
+  build-depends:       base >=4.10 && <4.11, megaparsec >=6.4 && <6.5, text >=1.2 && <1.3, ieee, ghc-prim, wl-pprint-text >= 1.2
   -- hs-source-dirs:
   default-language:    Haskell2010
 
@@ -106,7 +106,7 @@ test-suite test
     Test/TestDriver.hs
   build-depends:
       base >= 4 && < 5
-    , tasty , base >=4.10 && <4.11, megaparsec >=6.4 && <6.5, text >=1.2 && <1.3, cmdargs >=0.10 && <0.11, ieee, tasty-hunit, directory, process, ghc-prim
+    , tasty , base >=4.10 && <4.11, megaparsec >=6.4 && <6.5, text >=1.2 && <1.3,  ieee, tasty-hunit, directory, process, ghc-prim, wl-pprint-text >= 1.2
   other-modules: Brackets, ParseTree, Parser, PrettyPrinter, MAlonzo.Code.Refactoring, MAlonzo.Code.ParseTree,
                                                                                                  MAlonzo.Code.Agda.Builtin.Bool,
                                                                                                  MAlonzo.Code.Agda.Builtin.Char,

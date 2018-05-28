@@ -31,15 +31,18 @@ prettyPrintAll = do
 prettyPrintFile :: FilePath -> TestTree
 prettyPrintFile file = testCaseSteps file $ \step -> do
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
-  let result = prettyPrint (reindentFile $ parse fileContents) fileContents
+  let result1 =  rewriteAll fileContents
+  let result2 = rewriteAll result1
+  assertBool "prettyprint . parse . prettyprint . parse x != prettyprint . parse x" $ result1 == result2
   let outputLocation = outputDirectory ++ "/" ++ file
-  IO.writeFile outputLocation result
+  IO.writeFile outputLocation result2
   result@(exitCode, stdout, stderr) <-
     withCurrentDirectory outputDirectory $ readProcessWithExitCode "agda" [file] ""
-  step $ show $ parse fileContents
-  step $ show exitCode ++ "\n" ++ "stdout: "
-      ++ stdout ++ "\nstderr: " ++ stderr
+  --step $ show $ parse fileContents
+  --step $ show exitCode ++ "\n" ++ "stdout: "
+    --  ++ stdout ++ "\nstderr: " ++ stderr
   typecheckingOracle result
+  where rewriteAll s = prettyPrint (reindentFile $ parse s) s
 
 typecheckingOracle :: (ExitCode, String, String) -> IO ()
 typecheckingOracle (code, stdout, stderr) =
