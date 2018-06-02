@@ -12,7 +12,8 @@ Reindent
 
 <h1>Refactorings under construction</h1>
 Rename
-
+Add data type parameter
+Add data type index
 
 <h1> Missing a refactoring? </h1>
 Feel free to open an issue if a desired refactoring is not on this list
