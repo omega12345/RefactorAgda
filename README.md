@@ -7,6 +7,8 @@ make
 
 cabal install --enable-tests
 
+The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4
+
 <h1>RefactorAgda</h1>
 
 This project is a refactoring tool for a subset of Agda called Baby-Agda. This subset is intended to be extended gradually to include the entire Agda language. It does not currently have a main function but the functionality can be tested with cabal's testing framework.
