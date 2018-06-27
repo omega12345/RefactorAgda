@@ -2,7 +2,9 @@ This tool has been tested with ghc version 8.2.2.
 
 <h1>Installation instructions</h1>
 Run the following commands in terminal:
+
 make
+
 cabal install --enable-tests
 
 <h1>RefactorAgda</h1>
