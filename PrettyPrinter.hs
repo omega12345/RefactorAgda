@@ -1,22 +1,25 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-module PrettyPrinter (prettyPrint) where
+module PrettyPrinter (prettyPrint, prettyPrintAll) where
 import Data.Text (Text, append, pack, intercalate)
 import qualified Data.Text as T
 import qualified Data.List as List
 import ParseTree
 import Text.PrettyPrint.Leijen.Text as P
 
-prettyPrint :: [ParseTree] -> Text -> Text
-prettyPrint newTree oldCode = foldr replaceSection oldCode newTree
+prettyPrint :: [ParseTree] -> [ParseTree] -> Text -> Text
+prettyPrint newTree oldTree oldCode = foldr (replaceSection False) oldCode (List.zip oldTree newTree)
 
-replaceSection :: ParseTree -> Text -> Text
-replaceSection section inText =
-  let r = range section
+prettyPrintAll :: [ParseTree] -> [ParseTree] -> Text -> Text
+prettyPrintAll newTree oldTree oldCode = foldr (replaceSection True) oldCode (List.zip oldTree newTree)
+
+replaceSection :: Bool -> (ParseTree, ParseTree) -> Text -> Text
+replaceSection replaceAll (oldCode, newCode) inText =
+  let r = range newCode
       before = T.take (fromInteger $ lastUnaffected r) inText
       after = T.drop (fromInteger $ lastAffected r) inText
-  in if (needsUpdating r)
-     then (T.concat [before, (render section), after])
+  in if (oldCode /= newCode) || replaceAll
+     then T.concat [before, render newCode, after]
      else inText
 
 maxLineLength = 80
@@ -30,44 +33,52 @@ render p = displayTStrict $ renderPretty 1 maxLineLength $ printParseTree p
 -- fillSep: Concatenates input on one line as long as it will fit and then inserts a line break
 
 dealWithLongLine :: [Doc] -> Doc
-dealWithLongLine = (hang indentationWidth) . sep
+dealWithLongLine = hang indentationWidth . sep
 
 printParseTree :: ParseTree -> Doc
-printParseTree (Signature {signature}) = hang indentationWidth $ printSignature signature
-printParseTree (FunctionDefinition {definitionOf, params, body}) =
-  dealWithLongLine $ [textStrict definitionOf] ++ (map addBrackets params) ++ [textStrict "=", printExpr body]
-printParseTree (DataStructure {dataName, parameters, indexInfo, constructors}) =
-  (dealWithLongLine $
-      [textStrict "data", textStrict dataName] ++
-      (map (parens . hang indentationWidth . printSignature) parameters) ++
-      [textStrict ":", dealWithLongLine $ printType indexInfo False, textStrict "where"]
-      ) P.<$>
-  (vsep $  map (indent indentationWidth . hang indentationWidth . printSignature) constructors)
-printParseTree (Pragma {pragma}) = printPragma pragma
-printParseTree (OpenImport { opened, imported, moduleName}) =
-  dealWithLongLine $
-  [(if opened then textStrict "open" else empty), (if imported then textStrict "import" else empty),
-  textStrict $ T.concat $ List.intersperse "." moduleName]
-printParseTree (ModuleName { moduleName}) =
-  dealWithLongLine [textStrict "module", textStrict $ T.concat $ List.intersperse "." moduleName , textStrict "where"]
+printParseTree Signature {signature} = hang indentationWidth $ printSignature signature
+printParseTree FunctionDefinition {definitionOf, params, body} =
+  dealWithLongLine $ [printIdentifier definitionOf] ++ map printParameter params ++ [textStrict "=", printExpr body]
+printParseTree DataStructure {dataName, parameters, indexInfo, constructors} =
+  dealWithLongLine
+      ([textStrict "data", printIdentifier dataName] ++
+      map (parens . hang indentationWidth . printSignature) parameters ++
+      [textStrict ":", dealWithLongLine $ printType indexInfo False, textStrict "where"])
+       P.<$>
+  vsep ( map (indent indentationWidth . hang indentationWidth . printSignature) constructors)
+printParseTree Pragma {pragma} = printPragma pragma
+printParseTree OpenImport { opened, imported, moduleName} =
+  dealWithLongLine
+  [if opened then textStrict "open" else empty, if imported then textStrict "import" else empty,
+  printIdentifier moduleName]
+printParseTree ModuleName { moduleName} =
+  dealWithLongLine [textStrict "module", printIdentifier moduleName , textStrict "where"]
 
 --TODO: The rest of the comments does not get printed because right now it is guaranteed to be 0.
 printSignature :: TypeSignature -> Doc
-printSignature (TypeSignature {funcName, funcType, comments = (x:y:rest)}) =
-  sep $ sep ([textStrict funcName] ++ map printComment x ++ [textStrict":"] ++ map printComment y) : printType funcType False
+printSignature TypeSignature {funcName, funcType, comments = (x:y:rest)} =
+  sep $ sep ([printIdentifier funcName] ++ map printComment x ++ [textStrict":"] ++ map printComment y) : printType funcType False
 
 printExpr :: Expr -> Doc
 printExpr expr =
   case expr of
-    Ident {name} -> textStrict name
-    NumLit {value} -> integer value
+    ExprLit {literal} -> printLiteral literal
     Hole {textInside} -> enclose (textStrict "{!") (textStrict "!}") $ textStrict textInside
-    FunctionApp {function, argument} -> addBrackets function </> addBrackets argument
+    FunctionApp {function, argument} -> printExpr function </> bracketing argument (printExpr argument)
+  where bracketing (FunctionApp _ _) = parens
+        bracketing _ = id
 
-addBrackets :: Expr -> Doc
-addBrackets (FunctionApp {function , argument}) =
-            parens $ printExpr function </> printExpr argument
-addBrackets anything = printExpr anything
+printIdentifier :: Identifier -> Doc
+printIdentifier Identifier{name} = textStrict name
+
+printParameter :: Parameter -> Doc
+printParameter ParamApp {paramFunc , paramArg} =
+            parens $ printParameter paramFunc </> printParameter paramArg
+printParameter (Lit literal) = printLiteral literal
+
+printLiteral :: IdentOrLiteral -> Doc
+printLiteral NumLit {value} = integer value
+printLiteral (Ident x) = printIdentifier x
 
 printType :: Type -> Bool -> [Doc]
 printType t wantBrackets =
@@ -81,13 +92,13 @@ printType t wantBrackets =
       if wantBrackets
       then [parens $ sep temp]
       else temp
-      where temp = ((sep $ printType input True) </> arrow) : (printType output False)
+      where temp = (sep (printType input True) </> arrow) : printType output False
 
 printPragma :: Pragma -> Doc
-printPragma (Builtin {concept, definition})=
-  enclose (textStrict "{-# ") (textStrict " #-}") $ sep $
-  [textStrict "BUILTIN", textStrict concept, printExpr definition]
+printPragma Builtin {concept, definition}=
+  enclose (textStrict "{-# ") (textStrict " #-}") $ sep
+  [textStrict "BUILTIN", textStrict concept, printIdentifier definition]
 
 printComment :: Comment -> Doc
-printComment (LineComment {content}) = textStrict $ append "--" content
-printComment (MultiLineComment {content}) = enclose (textStrict"{-") (textStrict"-}") $ textStrict content
+printComment LineComment {content} = textStrict $ append "--" content
+printComment MultiLineComment {content} = enclose (textStrict"{-") (textStrict"-}") $ textStrict content

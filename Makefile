@@ -1,3 +1,3 @@
 all:
-	agda ParseTree.agda -c --no-main  --verbose=0
-	agda Refactoring.agda -c --no-main  --verbose=0
+	runhaskell TranslateHaskellData.hs
+	agda Refactoring.agda -c --no-main  

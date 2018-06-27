@@ -4,6 +4,7 @@ import Data.Bool
 
 data Nat : Set where zero : Nat -- Comment which gets eaten
                      suc  : Nat -> Nat --Comment which is preserved
+
 plus {- preserved comment  {- which may be nested -} -} :
 {- comment after Colon, also preserved-}
 {-comments are essentially whitespace, even through they get parsed-} Nat -> {-comment, not preserved-} Nat -> Nat
@@ -14,7 +15,6 @@ plus  zero   m = m
 plus (suc n) m = suc (plus n m)
 
 {-# BUILTIN NATPLUS plus #-}
-
 
 --excess brackets are not preserved
 minus : ((Nat)) -> Nat

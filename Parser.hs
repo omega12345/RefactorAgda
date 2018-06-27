@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parser (Parser.parse) where
+module Parser (Parser.parse, Parser) where
 import Text.Megaparsec as M
 import Data.Void
 import Data.Functor.Identity
@@ -13,6 +13,7 @@ import Text.Megaparsec.Expr
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Text as T
 import Text.Read (readMaybe)
+import Data.List (intersperse)
 
 -- Stuff which is important for the whole file
 -- Naming convention: the space consumer for line folds is always called sc.
@@ -24,13 +25,23 @@ parse s = case M.parse manyDefs "File name for error messages" s of
 
 type Parser = ParsecT Void Text Identity
 
+makeIdentifier :: Text -> (Integer -> Bool) -> Identifier
+makeIdentifier name range = Identifier name range 0 0
+
+makeSingleRangeFunction :: Int -> Int -> (Integer -> Bool)
+makeSingleRangeFunction lastUnaffected lastAffected x =
+  x >= toInteger lastUnaffected && x <= toInteger lastAffected + 1
+
+makeRange :: Int -> Int -> Range
+makeRange a z = Range (toInteger a) (toInteger z)
+
 -- Producing a parse tree
 
 noIndent :: Parser ParseTree
 noIndent = L.nonIndented skipTopLevelComments $
-      (try pragmaParser) <|> (try dataStructureParser)
-      <|> (try signatureParser) <|> (try openImportParser)<|>
-      (try moduleNameParser) <|> functionDefinitionParser
+      try pragmaParser <|> try dataStructureParser
+      <|> try signatureParser <|> try openImportParser<|>
+      try moduleNameParser <|> functionDefinitionParser
 
 manyDefs :: Parser [ParseTree]
 manyDefs = do skipTopLevelComments -- remove space at top of file
@@ -51,14 +62,14 @@ pragmaParser = do
   space1
   string "#-}"
   z <- getTokensProcessed
-  return $ Pragma (Builtin (pack concept) definition) $ Range (toInteger a) (toInteger z) False
+  return $ Pragma (Builtin (pack concept) definition) $ makeRange a z
 
 signatureParser :: Parser ParseTree
 signatureParser = do
   a <- getTokensProcessed
   content <- L.lineFold skipTopLevelComments typeSignature
   z <- getTokensProcessed
-  return $ Signature content $ Range (toInteger a) (toInteger z) False
+  return $ Signature content $ makeRange a z
 
 dataStructureParser :: Parser ParseTree
 dataStructureParser = do
@@ -68,7 +79,7 @@ dataStructureParser = do
   (emptyDataStructure, constructors) <-
     doBlockLikeStructure parseEmptyDataStructure item False skipTopLevelComments
   z <- getTokensProcessed
-  return $ emptyDataStructure {constructors = constructors, range = Range (toInteger a) (toInteger z) False}
+  return $ emptyDataStructure {constructors = constructors, range = makeRange a z}
 
 functionDefinitionParser :: Parser ParseTree
 functionDefinitionParser = lineFoldAndRange functionDefinition
@@ -84,7 +95,7 @@ lineFoldAndRange parser = do
   a <- getTokensProcessed
   content <- L.lineFold skipTopLevelComments parser
   z <- getTokensProcessed
-  return $ content{range = Range (toInteger a) (toInteger z) False}
+  return $ content{range = makeRange a z}
 
 -- parsing open and import statements
 openImport :: Parser () -> Parser ParseTree
@@ -119,22 +130,21 @@ parseModuleName sc = do
 -- Function definition parsing
 functionDefinition :: Parser () -> Parser ParseTree
 functionDefinition sc = do
-  definitionOf <- namePart
+  definitionOf <- ident
   sc
   params <- endBy (parameter sc) sc
-
   string "="
   sc
   body <- functionApp sc
-  return $ FunctionDefinition definitionOf params body $ Range (-1) (-1) False
+  return $ FunctionDefinition definitionOf params body $ Range (-1) (-1)
 
-parameter :: Parser () -> Parser Expr
-parameter sc = (try ident) <|>
+parameter :: Parser () -> Parser Parameter
+parameter sc = try (Lit . Ident <$> ident) <|>
                do -- unlike normal function application, this needs to be
                -- wrapped in parentheses
                  string "("
                  sc
-                 x <- functionApp sc
+                 x <- paramFunctionApp sc
                  sc
                  string ")"
                  return x
@@ -146,7 +156,7 @@ dataDefinition :: Parser () -> Parser ParseTree
 dataDefinition sc = do
   string "data"
   sc
-  name <- namePart
+  name <- ident
   sc
   parameters <- sepEndBy sign sc
   sc
@@ -155,7 +165,7 @@ dataDefinition sc = do
   indexInfo <- functionType sc
   sc
   string "where"
-  return $ DataStructure name parameters indexInfo [] $ Range (-1) (-1) False
+  return $ DataStructure name parameters indexInfo [] $ Range (-1) (-1)
   where sign = do
           string "("
           sc
@@ -168,19 +178,16 @@ dataDefinition sc = do
 
 typeSignature :: Parser () -> Parser TypeSignature
 typeSignature sc = do
- name <- namePart
+ name <- ident
  comment1 <- allCommentsUntilNonComment
  sc
  string ":"
  comment2 <- allCommentsUntilNonComment
  sc
  kind <- functionType sc
- return $ TypeSignature name kind $ comment1 : comment2 : []
+ return $ TypeSignature name kind [comment1, comment2]
 
 -- Expression parsing
-
-ident :: Parser Expr
-ident = namePart >>= return . Ident
 
 hole :: Parser Expr
 hole = questionMark <|>
@@ -190,17 +197,29 @@ hole = questionMark <|>
               string "?"
               return $ Hole "{! !}"
 
-numLit :: Parser Expr
+numLit :: Parser IdentOrLiteral
 numLit = do
   x <- potentialNamePart
   case (readMaybe $ unpack x) :: Maybe Integer of
     Nothing -> fail $ unpack x ++ "is not an int literal"
     Just y -> return $ NumLit y
 
+paramFunctionApp :: Parser () -> Parser Parameter
+paramFunctionApp sc = makeExprParserWithParens
+                 sc
+                 (try (Lit <$> numLit) <|> (Lit . Ident <$> ident))
+                 operatorTable
+      where whitespaceAsOperator :: Parser Parameter
+            whitespaceAsOperator = do
+                sc
+                lookAhead $ try $ paramFunctionApp sc
+            operatorTable ::  [[Operator Parser Parameter]]
+            operatorTable = [[InfixL $ ParamApp <$ try whitespaceAsOperator]]
+
 functionApp :: Parser () -> Parser Expr
 functionApp sc = makeExprParserWithParens
                  sc
-                 ((try numLit) <|> ident <|> hole)
+                 (try (ExprLit <$> numLit) <|> try ( ExprLit . Ident <$> ident) <|> hole)
                  operatorTable
       where whitespaceAsOperator :: Parser Expr
             whitespaceAsOperator = do
@@ -215,12 +234,10 @@ functionType :: Parser () -> Parser Type
 functionType sc =
   makeExprParserWithParens
   sc
-  (try (typeParser sc) <|> try (implicitArgParser sc) <|> (explicitArgParser sc))
+  (try (typeParser sc) <|> try (implicitArgParser sc) <|> explicitArgParser sc)
   arrowTable
   where arrowTable :: [[Operator Parser Type]]
         arrowTable = [[InfixR $ FunctionType <$ try arrowParser]]
-        --this one now returns failure on a -> \na, therefore causing only a to be parsed.
-        --Hopefully resolved when parsers are combined.
         arrowParser :: Parser ()
         arrowParser = do
           sc
@@ -228,7 +245,7 @@ functionType sc =
           sc
 
 typeParser :: Parser () -> Parser Type
-typeParser sc = functionApp sc >>= return . Type
+typeParser sc = Type <$> functionApp sc
 
 implicitArgParser :: Parser () -> Parser Type
 implicitArgParser = anyArgParser "{" "}" ImplicitArgument
@@ -248,18 +265,32 @@ anyArgParser opening closing constructor sc = do
 
 
 -- Identifier parsing
+ident :: Parser Identifier
+ident = do
+  lastBefore <- getTokensProcessed
+  x <- namePart
+  lastToken <- getTokensProcessed
+  return $ makeIdentifier x (makeSingleRangeFunction lastBefore lastToken)
+
 namePart :: Parser Text
 namePart = do
   x <- potentialNamePart
   if elem x  keywords || isPrefixOf "--" x
-  then fail $ (unpack x) ++ " is a reserved word and can't be used as a name part."
+  then fail $ unpack x ++ " is a reserved word and can't be used as a name part."
   else return x
 
 keywords :: [Text]
 keywords = T.words " = | -> : ? \\ → ∀ λ abstract constructor data field forall hiding import in infix infixl infixr let module mutual open postulate primitive Prop private public quoteGoal quoteTerm quote record renaming rewrite syntax unquote using where with "
 
-qualifiedName :: Parser [Text]
-qualifiedName = sepBy namePart (string ".")
+--TODO: Should have a parser for Set as well
+
+qualifiedName :: Parser Identifier
+qualifiedName = do
+  lastBefore <- getTokensProcessed
+  x <- sepBy namePart (string ".")
+  lastToken <- getTokensProcessed
+  return $ makeIdentifier (T.concat $ Data.List.intersperse "." x)
+      (makeSingleRangeFunction lastBefore lastToken)
 
 potentialNamePart :: Parser Text
 potentialNamePart = do
@@ -268,7 +299,7 @@ potentialNamePart = do
    where requirement :: Parser Char
          requirement = satisfy req
          req :: Char -> Bool
-         req x = isPrint x && not (elem x (" @.(){};_"::String))
+         req x = isPrint x && notElem x (" @.(){};_"::String)
 
 -- Comment parsing
 
@@ -278,7 +309,7 @@ allCommentsUntilNonComment = lookAhead $ space >> sepEndBy (lineComment <|> mult
 lineComment :: Parser Comment
 lineComment = do
   string "--"
-  content <- many $ satisfy (\x -> not (elem x ("\r\n"::String)))
+  content <- many $ satisfy (\x -> notElem x ("\r\n"::String))
   return $ LineComment $ pack content
 
 multiLineComment :: Parser Comment
@@ -290,10 +321,10 @@ multiLineComment = do
 
 flatNestedStructure :: Text -> Text -> (Text -> a) -> (a -> Text)-> Parser a
 flatNestedStructure start end constructor deconstructor =
-  (p >> manyTill e n) >>= return . constructor . T.concat
-    where e = (flatNestedStructure start end constructor deconstructor >>= return . (\x -> append start $ append (deconstructor x) end )) <|> f
+    constructor . T.concat <$> (p >> manyTill e n)
+    where e = (\x -> append start $ append (deconstructor x) end ) <$> flatNestedStructure start end constructor deconstructor <|> f
           f :: Parser Text
-          f = anyChar >>= return . singleton
+          f = singleton <$> anyChar
           p = string start
           n = string end
 

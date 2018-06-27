@@ -5,7 +5,6 @@ module Brackets where
 
 import Text.Megaparsec.Expr
 import Text.Megaparsec
-import Text.Megaparsec.Char
 import Data.Text
 import Text.Megaparsec.Char as C
 import Text.Megaparsec.Char.Lexer
@@ -21,7 +20,7 @@ makeExprParserWithBrackets openingBracketParser closingBracketParser spaceConsum
           spaceConsumer
           closingBracketParser
           return x
-        calculator = makeExprParser (try (termParser) <|> bracketParser) operatorTable
+        calculator = makeExprParser (try termParser <|> bracketParser) operatorTable
 
 makeExprParserWithParens ::
   MonadParsec e Text m =>  m d -> m a -> [[Operator m a]] -> m a
@@ -52,6 +51,6 @@ itemAtLevel :: MonadParsec e s m => Int -> m a -> m () -> m a
 itemAtLevel level item space = do
                        space --eat any whitespace
                        currentIndent <- indentLevel
-                       if (unPos currentIndent) == level
+                       if unPos currentIndent == level
                        then item
                        else incorrectIndent EQ (mkPos level) currentIndent

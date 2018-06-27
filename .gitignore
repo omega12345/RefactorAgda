@@ -8,7 +8,4 @@ MAlonzo
 *.agdai
 *.hi
 *.o
-ParseHaskellData.hs
-PrintAgdaData.hs
-TranslateHaskellData.hs
 dist-newstyle
