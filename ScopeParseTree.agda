@@ -3,7 +3,7 @@
 module ScopeParseTree where
 open import ParseTree
 open import Data.Empty
-open import ScopeEnv
+open import ScopeState
 open import Data.List hiding (_++_)
 open import Data.Product hiding (map)
 open import Data.Fin
@@ -11,99 +11,98 @@ open import Data.Nat
 open import Data.Sum
 open import Data.String
 open import Data.Bool
+open import AgdaHelperFunctions
 
 scopeLiteral : IdentOrLiteral -> ScopeState IdentOrLiteral
 scopeLiteral (ident identifier₁) = do
 -- first try to find identifier among already declared (simplification for constructor), then assume new declaration (simplification for parameter or out-of-file declaration)
-  inj₂ r <- fillInIdentifier identifier₁
-   where _ ->  addIdentifier identifier₁ >>= reassemble ident
-  return (inj₂ (ident r))
-scopeLiteral x = return (inj₂ x)
+  inj₂ r <- try $ fillInIdentifier identifier₁
+   where _ ->  do x <- addIdentifier identifier₁
+                  return $ ident x
+  return $ ident r
+scopeLiteral x = return x
 
 scopeParameter : Parameter -> ScopeState Parameter
-scopeParameter (lit literal) = scopeLiteral literal >>= reassemble lit
+scopeParameter (lit literal) = do x <- scopeLiteral literal
+                                  return $ lit x
 scopeParameter (paramApp function argument) = do
   r1 <- scopeParameter function
   r2 <- scopeParameter argument
-  reassemble2 paramApp r1 r2
+  return $ paramApp r1 r2
 
 scopeExpr : Expr -> ScopeState Expr
-scopeExpr (exprLit literal) = scopeLiteral literal >>= reassemble exprLit
+scopeExpr (exprLit literal) = do
+  x <- scopeLiteral literal
+  return $ exprLit x
 scopeExpr (functionApp e e₁) = do
   r1 <- scopeExpr e
   r2 <- scopeExpr e₁
-  reassemble2 functionApp r1 r2
-scopeExpr x = return (inj₂ x)
+  return $ functionApp r1 r2
+scopeExpr x = return x
 
 scopeSignature : TypeSignature -> ScopeType -> ScopeState TypeSignature
 
 scopeType : Type -> ScopeState Type
 -- simple types do not add either scopes or variables
-scopeType (type expression) = scopeExpr expression >>= reassemble type
+scopeType (type expression) = do
+  x <- scopeExpr expression
+  return $ type x
 -- implicit and explicit arguments open a new scope, which is done by
 -- scopeSignature
-scopeType (implicitArgument impArg) =
-  scopeSignature impArg addVariableToType
-  >>= reassemble implicitArgument
-scopeType (explicitArgument expArg) =
-  scopeSignature expArg addVariableToType
-  >>= reassemble explicitArgument
+scopeType (implicitArgument impArg) = do
+  x <- scopeSignature impArg addVariableToType
+  return $ implicitArgument x
+scopeType (explicitArgument expArg) = do
+  x <- scopeSignature expArg addVariableToType
+  return $ explicitArgument x
 scopeType (functionType t t₁) =  do
   result1 <- scopeType t
-  result2 <- (scopeType t₁)
-  reassemble2 functionType result1 result2
-
+  result2 <- scopeType t₁
+  return $ functionType result1 result2
 
 scopeSignature (typeSignature funcName funcType comments) scopeT = do
-    rememberScope -- effectively scope in which previous function is declared
-    newType <- scopeType funcType -- types are scoped in the context of the previous
-    -- scope, the function being scoped is not visible here!
-    -- go back up the scope tree, in case subscopes were added for variable types
-    returnToRememberedScope
+    newType <- saveAndReturnToScope $ scopeType funcType
     addScope scopeT
     newId <- addIdentifier funcName
-    reassemble2 (λ x y -> typeSignature x y comments) newId newType
+    return $ typeSignature newId newType comments
 
 scopePragma : Pragma -> ScopeState Pragma
-scopePragma (builtin concept definition) =
-  fillInIdentifier definition >>= reassemble (builtin concept)
+scopePragma (builtin concept definition) = do
+  x <- fillInIdentifier definition
+  return $ builtin concept x
 
 scopeParseTree : ParseTree -> ScopeState ParseTree
-scopeParseTree (signature signature₁ range₁) =
-  scopeSignature signature₁ addFuncToModule
-  >>= reassemble (λ x -> signature x range₁)
+scopeParseTree (signature signature₁ range₁) = do
+  x <- scopeSignature signature₁ addFuncToModule
+  return $ signature x range₁
 scopeParseTree (functionDefinition definitionOf params body range₁) = do
-  inj₂ newId <- fillInIdentifier definitionOf
-    where inj₁ x -> return (inj₁ x)
-  rememberScope
-  addScope funcDef
-  newParams <- mapState scopeParameter params
-  newBody <- scopeExpr body
-  returnToRememberedScope
-  reassemble2 (λ a b -> functionDefinition newId a b range₁) newParams newBody
+  newId <- fillInIdentifier definitionOf
+  x <- saveAndReturnToScope $ do
+          addScope funcDef
+          newParams <- mapState scopeParameter params
+          newBody <- scopeExpr body
+          return $ functionDefinition newId newParams newBody range₁
+  return x
 scopeParseTree
   (dataStructure dataName parameters indexInfo constructors range₁) = do
-    addScope (moduleDef dataName)
-    inj₂ newDataName <- addIdentifier dataName
-      where inj₁ x -> return (inj₁ x)
-    rememberScope
-    newParams <- mapState (λ x -> scopeSignature x addVariableToType) parameters
-    newIndex <- scopeType indexInfo
-    inj₂ newCons <-
-        mapState (λ x -> scopeSignature x addFuncToModule) constructors
-      where inj₁ x -> return (inj₁ x)
-    returnToRememberedScope
-    inj₂ r <- mapState addContentReferenceToModuleTop newCons
-      where inj₁ x -> return (inj₁ x)
-    reassemble2 (λ x y -> dataStructure newDataName x y newCons range₁) newParams newIndex
+    addScope $ moduleDef dataName
+    newDataName <- addIdentifier dataName
+    ( newParams , newIndex) , newCons <- saveAndReturnToScope $ do
+              newParams <- mapState (λ x -> scopeSignature x addVariableToType) parameters
+              newIndex <- scopeType indexInfo
+              newCons <- mapState (λ x -> scopeSignature x addFuncToModule) constructors
+              return ((newParams , newIndex) , newCons)
+    r <- mapState addContentReferenceToModuleTop newCons
+    return $ dataStructure newDataName newParams newIndex newCons range₁
 scopeParseTree (moduleName moduleName₁ range₁) = do
-  addScope (moduleDef moduleName₁)
-  return (inj₂ (moduleName moduleName₁ range₁))
+  addScope $ moduleDef moduleName₁
+  return $ moduleName moduleName₁ range₁
 scopeParseTree (pragma pragma₁ range₁) = do
-  scopePragma pragma₁ >>= reassemble (λ x -> pragma x range₁)
-scopeParseTree x = return (inj₂ x)
+  x <- scopePragma pragma₁
+  return $ pragma x range₁
+scopeParseTree x = return x
 
-scopeParseTreeList : List ParseTree -> ScopeState (List ParseTree) --Σ (String ⊎ List ParseTree) (λ _ → ScopeEnv)
+scopeParseTreeList : List ParseTree -> ScopeState (List ParseTree)
 scopeParseTreeList program = do
   --TODO: fix sloppy workaround
   addIdentifier (identifier "BlockUpPlaceHolderPlace" (λ _ -> false) 0 0)

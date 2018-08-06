@@ -3,7 +3,7 @@ module InterpretCommand where
 open import ParseTree
 open import Data.List
 open import Data.Nat
-open import ScopeEnv
+open import ScopeState
 open import Data.Sum hiding (map)
 open import Data.Bool
 open import Data.String hiding (_++_)
