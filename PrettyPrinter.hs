@@ -84,10 +84,10 @@ printType :: Type -> Bool -> [Doc]
 printType t wantBrackets =
   case t of
     Type {expression} -> [printExpr expression]
-    ImplicitArgument { impArg} ->
-      [braces $ printSignature impArg]
-    ExplicitArgument { expArg} ->
-      [parens $ printSignature expArg]
+    NamedArgument { arg , explicit} ->
+      case explicit of
+        True -> [parens $ printSignature arg]
+        False -> [braces $ printSignature arg]
     FunctionType { input, output } ->
       if wantBrackets
       then [parens $ sep temp]

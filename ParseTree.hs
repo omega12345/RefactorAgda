@@ -33,7 +33,8 @@ data TypeSignature = TypeSignature { funcName :: Identifier
                                    , comments :: [[Comment]]
                                    } deriving (Show, Eq)
 
-data IdentOrLiteral = NumLit {value :: Integer}
+data IdentOrLiteral = NumLit {value :: Integer -- implicit
+                              }
                     | Ident {identifier :: Identifier} deriving (Show, Eq)
 
 -- parameters to a function definition are a subset of things valid
@@ -45,15 +46,17 @@ data Parameter = Lit {paramLit :: IdentOrLiteral}
                           } deriving (Show, Eq)
 
 data Expr = ExprLit {literal :: IdentOrLiteral}
-           | Hole {textInside :: Text}
+           | Hole {textInside :: Text -- implicit
+                    }
            | FunctionApp { function :: Expr
                          , argument :: Expr
                          }
            deriving (Show, Eq)
 
 data Type = Type { expression :: Expr }
-            | ImplicitArgument { impArg :: TypeSignature}
-            | ExplicitArgument { expArg :: TypeSignature}
+            | NamedArgument { arg :: TypeSignature
+                            , explicit :: Bool -- implicit
+                            }
             | FunctionType { input :: Type
                            , output :: Type
                            } deriving (Show, Eq)
@@ -78,5 +81,7 @@ data Pragma = Builtin { concept :: Text
                       , definition :: Identifier
                       } deriving (Show, Eq)
 
-data Comment = LineComment { content :: Text}
-               | MultiLineComment { content :: Text } deriving (Show, Eq)
+data Comment = LineComment { content :: Text  -- implicit
+                            }
+               | MultiLineComment { content :: Text -- implicit
+                                  } deriving (Show, Eq)

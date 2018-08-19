@@ -49,12 +49,9 @@ scopeType (type expression) = do
   return $ type x
 -- implicit and explicit arguments open a new scope, which is done by
 -- scopeSignature
-scopeType (implicitArgument impArg) = do
-  x <- scopeSignature impArg addVariableToType
-  return $ implicitArgument x
-scopeType (explicitArgument expArg) = do
-  x <- scopeSignature expArg addVariableToType
-  return $ explicitArgument x
+scopeType (namedArgument arg {b}) = do
+  x <- scopeSignature arg addVariableToType
+  return $ namedArgument x {b}
 scopeType (functionType t t₁) =  do
   result1 <- scopeType t
   result2 <- scopeType t₁

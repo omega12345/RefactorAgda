@@ -37,12 +37,9 @@ matchUpType : Type -> ScopeState Type
 matchUpType (type expression) = do
   x <- matchUpExpr expression
   return $ type x
-matchUpType (implicitArgument impArg) = do
-  x <- matchUpSignature impArg
-  return $ implicitArgument x
-matchUpType (explicitArgument expArg) = do
-  x <- matchUpSignature expArg
-  return $ explicitArgument x
+matchUpType (namedArgument arg {b}) = do
+  x <- matchUpSignature arg
+  return $ namedArgument x {b}
 matchUpType (functionType t t₁) =  do
   result1 <- matchUpType t
   result2 <- (matchUpType t₁)

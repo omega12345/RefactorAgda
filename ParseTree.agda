@@ -42,7 +42,7 @@ data TypeSignature where
 ) #-}
 
 data IdentOrLiteral where
-  numLit : (value : ℕ) -> IdentOrLiteral
+  numLit : {value : ℕ} -> IdentOrLiteral
   ident : (identifier : Identifier) -> IdentOrLiteral
 
 {-# COMPILE GHC IdentOrLiteral = data IdentOrLiteral
@@ -61,7 +61,7 @@ data Parameter where
 
 data Expr where
   exprLit : (literal : IdentOrLiteral) -> Expr
-  hole : (textInside : String) -> Expr
+  hole : {textInside : String} -> Expr
   functionApp : (function : Expr) -> (argument : Expr) -> Expr
 
 {-# COMPILE GHC Expr = data Expr
@@ -72,14 +72,12 @@ data Expr where
 
 data Type where
   type : (expression : Expr) -> Type
-  implicitArgument : (impArg : TypeSignature) -> Type
-  explicitArgument : (expArg : TypeSignature) -> Type
+  namedArgument : (arg : TypeSignature) -> {explicit : Bool} -> Type
   functionType : (input : Type) -> (output : Type) -> Type
 
 {-# COMPILE GHC Type = data Type
 ( Type
-| ImplicitArgument
-| ExplicitArgument
+| NamedArgument
 | FunctionType
 ) #-}
 
@@ -105,8 +103,8 @@ data Pragma where
 ) #-}
 
 data Comment where
-  lineComment : (content : String) -> Comment
-  multiLineComment : (content : String) -> Comment
+  lineComment : {content : String} -> Comment
+  multiLineComment : {content : String} -> Comment
 
 {-# COMPILE GHC Comment = data Comment
 ( LineComment

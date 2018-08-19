@@ -20,7 +20,8 @@ main = do
   tests <- Main.prettyPrintAll
   moreTests <- scopeAll
   renameTests <- manualRenameTests
-  defaultMain $ testGroup "all tests" [tests, moreTests, renameTests]
+  pushArgTests <- manualPushArgumentTests
+  defaultMain $ testGroup "all tests" [tests, moreTests, renameTests, pushArgTests]
 
 inputDirectory :: FilePath
 inputDirectory = "Test/Tests/input"
@@ -42,7 +43,7 @@ prettyPrintFile file = testCaseSteps file $ \step -> do
     --  ++ stdout ++ "\nstderr: " ++ stderr
   typecheckingOracle result2 file
   where rewriteAll :: Text -> Text
-        rewriteAll s = PrettyPrinter.prettyPrintAll (doNothing $ parse s) (parse s) s
+        rewriteAll s = PrettyPrinter.prettyPrintAll (doNothing $ parse s file) (parse s file) s
 
 scopeAll :: IO TestTree
 scopeAll = runSameCompilationTestOnAllFiles scopeFile "Scoping tests"
@@ -50,10 +51,10 @@ scopeAll = runSameCompilationTestOnAllFiles scopeFile "Scoping tests"
 scopeFile :: FilePath -> TestTree
 scopeFile file = testCaseSteps file $ \step -> do
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
-  case scopeOnly $ parse fileContents of
+  case scopeOnly $ parse fileContents file of
     Left e -> assertFailure (unpack e)
     Right x -> do
-         let result = PrettyPrinter.prettyPrintAll x (parse fileContents) fileContents
+         let result = PrettyPrinter.prettyPrintAll x (parse fileContents file) fileContents
          typecheckingOracle result file
 
 typecheckingOracle :: Text -> String -> IO ()
@@ -95,7 +96,7 @@ manualFailingRenameTest a@(file, point, oldName, newName) =
  testCaseSteps file $ \step -> do
   step $ "starting on test case" ++ show (a)
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
-  let tree = parse fileContents
+  let tree = parse fileContents file
   case checkCommand tree point of
     Left x -> assertFailure (unpack x)
     Right x -> do
@@ -110,7 +111,7 @@ manualRenameTest a@(file, point, oldName, newName) =
  testCaseSteps file $ \step -> do
   step $ "starting on test case" ++ show (a)
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
-  let tree = parse fileContents
+  let tree = parse fileContents file
   case checkCommand tree point of
     Left x -> assertFailure (unpack x)
     Right x -> do
@@ -120,6 +121,41 @@ manualRenameTest a@(file, point, oldName, newName) =
                   Left x -> assertFailure (unpack x)
                   Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
 
+manualPushArgumentTestData :: [(FilePath, Integer)]
+manualPushArgumentTestData = [ ("MoveArg.agda" , 78)
+                             ,("MoveArg.agda" , 249)
+                             ]
+
+manualFailingPushTestData :: [(FilePath, Integer)]
+manualFailingPushTestData = [ ("MoveArg.agda" , 235)
+                        --     ,("MoveArg.agda" , 249)
+                             ]
+
+manualPushArgumentTests :: IO TestTree
+manualPushArgumentTests = do
+  return $ testGroup "Manual argument pushing tests" $ map manualPushArgumentTest manualPushArgumentTestData ++ map manualFailingPushTest manualFailingPushTestData
+
+manualPushArgumentTest :: (FilePath, Integer) -> TestTree
+manualPushArgumentTest (file , point) =
+  testCaseSteps file $ \step -> do
+    fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
+    let tree = parse fileContents file
+    let newContents = pushArgument tree point
+    case newContents of
+      Left x -> assertFailure (unpack x)
+      Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
+
+manualFailingPushTest :: (FilePath, Integer) -> TestTree
+manualFailingPushTest (file, point) = do
+  testCaseSteps file $ \step -> do
+    fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
+    let tree = parse fileContents file
+    let newContents = pushArgument tree point
+    case newContents of
+      Left x -> return ()
+      Right y ->  do
+                   typecheckingOracle (prettyPrint y tree fileContents) file
+                   assertFailure "Failing push test passed."
   -- how to combine quickcheck with io
   --return $ testGroup "Manual rename tests with auto-generated new names" [testProperty "Rename does not crash" $ (\x -> ioProperty $ testScoping fileContents x)]
 

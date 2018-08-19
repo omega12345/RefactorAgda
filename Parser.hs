@@ -18,10 +18,10 @@ import Data.List (intersperse)
 -- Stuff which is important for the whole file
 -- Naming convention: the space consumer for line folds is always called sc.
 
-parse :: Text -> [ParseTree]
-parse s = case M.parse manyDefs "File name for error messages" s of
-            Left x -> error $ parseErrorPretty x
-            Right y -> y
+parse :: Text -> String -> [ParseTree]
+parse s fileName = case M.parse manyDefs fileName s of
+                    Left x -> error $ parseErrorPretty x
+                    Right y -> y
 
 type Parser = ParsecT Void Text Identity
 
@@ -248,10 +248,10 @@ typeParser :: Parser () -> Parser Type
 typeParser sc = Type <$> functionApp sc
 
 implicitArgParser :: Parser () -> Parser Type
-implicitArgParser = anyArgParser "{" "}" ImplicitArgument
+implicitArgParser = anyArgParser "{" "}" (\ x -> NamedArgument x False)
 
 explicitArgParser :: Parser () -> Parser Type
-explicitArgParser = anyArgParser "(" ")" ExplicitArgument
+explicitArgParser = anyArgParser "(" ")" (\ x -> NamedArgument x True)
 
 anyArgParser :: Text -> Text -> (TypeSignature -> Type) -> Parser () -> Parser Type
 anyArgParser opening closing constructor sc = do

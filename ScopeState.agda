@@ -20,6 +20,7 @@ open import Category.Monad
 open import Relation.Binary.Core
 open import Relation.Binary.PropositionalEquality.TrustMe
 open import Data.Unit
+open import AgdaHelperFunctions
 
 data ScopeType : Set where
   funcDef : ScopeType
@@ -274,4 +275,15 @@ currentScopeTypeIsFuncDef = do
   mkScope funcDef enclosing declaredVars <- return (veclookup current scopes)
     where _ -> fail "This is not the scope type you expected"
   return true
--- 291, 12070
+
+
+sameId : Identifier -> Identifier -> Bool
+sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) with declaration Data.Nat.≟ declaration₁
+sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) | yes p = true
+sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) | no ¬p = false
+
+--TODO: This may return the same name several times even when this is not valid.
+getUniqueIdentifier : ScopeState Identifier
+getUniqueIdentifier = do
+  id <- addIdentifier $ identifier "renameMe" (λ _ -> false) 0 0
+  return id

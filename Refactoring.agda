@@ -13,6 +13,9 @@ open import Data.Maybe
 open import Data.Vec using (toList  ; lookup ; Vec)
 open import Data.Fin
 open import AgdaHelperFunctions
+open import PushArgument renaming (pushArgument to push)
+
+
 doNothing : List ParseTree -> List ParseTree
 doNothing x = x
 
@@ -64,3 +67,14 @@ rename : List ParseTree -> ℕ -> String -> String ⊎ List ParseTree
 rename program point newName = run (rename' program point newName) newEnv
 
 {-# COMPILE GHC rename as rename #-}
+
+pushArgument' : List ParseTree -> ℕ -> ScopeState (List ParseTree)
+pushArgument' program point = do
+  scoped <- scopeParseTreeList program
+  funcID , argNumber <- getFuncIdAndArgNumber scoped point
+  push scoped funcID argNumber
+
+pushArgument : List ParseTree -> ℕ -> String ⊎ List ParseTree
+pushArgument program point = run (pushArgument' program point) newEnv
+
+{-# COMPILE GHC pushArgument as pushArgument #-}

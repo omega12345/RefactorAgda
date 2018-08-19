@@ -23,13 +23,17 @@ constructorToAgda :: Text -> Constructor -> Text
 constructorToAgda dataname (Constructor name contents) =
   "  " `append` toLower (singleton $ Data.Text.head name) `append` Data.Text.tail name `append`
   " : " `append`
-  -- contents is a list of (varname, typesList)
+  -- contents is a list of (varname, typesList, isExplicit)
   Data.Text.concat ( map varToAgda contents) `append`
   dataname `append`
   "\n"
 
-varToAgda :: (Text, [Text]) -> Text
-varToAgda (name, types) = addArrow $ Data.Text.concat ["(", name, " : ", typeToAgda types, ")"]
+varToAgda :: (Text, [Text], Bool) -> Text
+varToAgda (name, types, isExplicit) = addArrow $ Data.Text.concat [openP isExplicit, name, " : ", typeToAgda types, closeP isExplicit]
+    where openP True = "("
+          openP False = "{"
+          closeP True = ")"
+          closeP False = "}"
 
 addArrow :: Text -> Text
 addArrow input = append input " -> "

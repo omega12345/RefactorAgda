@@ -8,7 +8,8 @@ open import Data.Sum hiding (map)
 open import Data.Bool
 open import Data.String hiding (_++_)
 open import Data.Maybe hiding (map)
-
+open import Data.Product hiding (map)
+open import AgdaHelperFunctions
 
 getRange : ParseTree -> Range
 getRange (signature _ range₁) = range₁
@@ -37,12 +38,12 @@ findInIdentifier n (identifier name isInRange₁ scope declaration) =
   if (isInRange₁ n) then (just declaration) else nothing
 
 findInIdentOrLiteral : ℕ -> IdentOrLiteral -> Maybe ℕ
-findInIdentOrLiteral n (numLit value) = nothing
+findInIdentOrLiteral n numLit = nothing
 findInIdentOrLiteral n (ident identifier₁) = findInIdentifier n identifier₁
 
 findInExpr : ℕ -> Expr -> Maybe ℕ
 findInExpr n (exprLit literal) = findInIdentOrLiteral n literal
-findInExpr n (hole textInside) = nothing
+findInExpr n hole = nothing
 findInExpr n (functionApp e e₁) = firstActualValue (findInExpr n e ∷ findInExpr n e₁ ∷ [])
 
 findInParam : ℕ -> Parameter -> Maybe ℕ
@@ -57,8 +58,7 @@ findInSignature n (typeSignature funcName funcType comments) =
 
 
 findInType n (type expression) = findInExpr n expression
-findInType n (implicitArgument impArg) = findInSignature n impArg
-findInType n (explicitArgument expArg) = findInSignature n expArg
+findInType n (namedArgument arg) = findInSignature n arg
 findInType n (functionType t t₁) = firstActualValue (findInType n t ∷ findInType n t₁ ∷ [])
 
 findInParseTree : ℕ -> ParseTree -> Maybe ℕ
@@ -77,3 +77,26 @@ getDeclarationIDForPoint (x ∷ list) point with isInRange (getRange x) point
 getDeclarationIDForPoint (x ∷ list) point | false =
   getDeclarationIDForPoint list point
 getDeclarationIDForPoint (x ∷ list) point | true = findInParseTree point x
+
+-- for argument rearranging
+
+--TODO fix this when adding more detailed source position data
+getArgNumber : ℕ -> ℕ -> Type -> ScopeState ℕ
+getArgNumber point currArgNumber (functionType t t₁) = do
+  just _ <- return $ findInType point t
+    where _ -> getArgNumber point (currArgNumber + 1) t₁
+  return currArgNumber
+getArgNumber point currArgNumber t = fail "Point seems to be in result."
+
+getFuncIdAndArgNumberInParseTree : ℕ -> ParseTree -> ScopeState (ℕ × ℕ)
+getFuncIdAndArgNumberInParseTree n (signature (typeSignature (identifier name isInRange₁ scope declaration) funcType comments) range₁) = do
+    argNum <- getArgNumber n zero funcType
+    return $ declaration , argNum
+getFuncIdAndArgNumberInParseTree _ _ = fail "Point not in signature"
+
+getFuncIdAndArgNumber : List ParseTree -> ℕ -> ScopeState (ℕ × ℕ)
+getFuncIdAndArgNumber [] point = fail "Point not in code"
+getFuncIdAndArgNumber (x ∷ list) point with isInRange (getRange x) point
+getFuncIdAndArgNumber (x ∷ list) point | false =
+  getFuncIdAndArgNumber list point
+getFuncIdAndArgNumber (x ∷ list) point | true = getFuncIdAndArgNumberInParseTree point x

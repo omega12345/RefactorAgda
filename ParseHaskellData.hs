@@ -13,7 +13,9 @@ data DataStructure = NameAndAllConstructors {name ::Text
                                             } deriving Show
 
 data Constructor = Constructor {consname :: Text
-                               ,contents :: [(Text, [Text])]
+                                -- each element in this list is an argument
+                                -- Bool true means explicit argument
+                               ,contents :: [(Text, [Text], Bool)]
                                 } deriving Show
 
 -- | parses all Haskell data structures in input, ignoring everything else.
@@ -55,7 +57,7 @@ constructorParser = do
   space
   return $ Constructor (pack name) contents
 
-  where single :: Parser (Text, [Text])
+  where single :: Parser (Text, [Text], Bool)
         single = do
           space
           name <- some alphaNumChar
@@ -64,7 +66,13 @@ constructorParser = do
           space
           x <- sepBy (L.lexeme space $ some (alphaNumChar <|> char '[' <|> char ']')) (string "->" >> space)
           space
-          return (pack name, Prelude.map pack x)
+          option (pack name, Prelude.map pack x, True) $
+              do
+                  string "-- implicit"
+                  space
+                  return (pack name, Prelude.map pack x, False)
+
+          --return (pack name, Prelude.map pack x)
 
 notData :: Parser ()
 notData = skipManyTill (spaceChar <|> printChar) (lookAhead (string "data" >> return ()) <|> eof)
