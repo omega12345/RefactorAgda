@@ -14,7 +14,7 @@ The makefile contains instructions for compiling the Agda files. To execute it, 
 This project is a refactoring tool for a subset of Agda called Baby-Agda. This subset is intended to be extended gradually to include the entire Agda language. It does not currently have a main function but the functionality can be tested with cabal's testing framework.
 
 <h1>Currently supported refactorings</h1>
-Reindent, rename
+Reindent, rename, push (reorder) function arguments
 
 <h1> Missing a refactoring? </h1>
 Feel free to open an issue if a desired refactoring is not on this list
