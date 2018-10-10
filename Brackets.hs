@@ -3,7 +3,7 @@
 -- | Expression parser generator with bracket support.
 module Brackets where
 
-import Text.Megaparsec.Expr
+import Control.Monad.Combinators.Expr
 import Text.Megaparsec
 import Data.Text
 import Text.Megaparsec.Char as C
@@ -11,8 +11,7 @@ import Text.Megaparsec.Char.Lexer
 
 makeExprParserWithBrackets ::
   MonadParsec e s m => m b -> m c -> m d -> m a -> [[Operator m a]] -> m a
-makeExprParserWithBrackets openingBracketParser closingBracketParser spaceConsumer termParser operatorTable =
-  calculator
+makeExprParserWithBrackets openingBracketParser closingBracketParser spaceConsumer termParser operatorTable = calculator
   where bracketParser = do
           openingBracketParser
           spaceConsumer

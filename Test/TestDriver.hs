@@ -14,20 +14,44 @@ import Test.Tasty.HUnit
 import Test.QuickCheck
 import Data.Char
 import Test.Tasty.QuickCheck
+import ParseTree
+--import InteractWithAgda
 
 main :: IO ()
 main = do
   tests <- Main.prettyPrintAll
-  moreTests <- scopeAll
-  renameTests <- manualRenameTests
-  pushArgTests <- manualPushArgumentTests
-  defaultMain $ testGroup "all tests" [tests, moreTests, renameTests, pushArgTests]
+  moreTests <- runSameCompilationTestOnAllFiles scopeFile "Scoping tests"
+  passingRenameTests <- generateTests manualRenameTest
+                                      manualRenameTestData
+                                      "Passing manual rename tests"
+  failingManualRenameTests <- generateTests manualFailingRenameTest
+                                            manualFailingRenameTestData
+                                            "Failing manual rename tests"
+  passingPushArgTests <- generateTests manualPushArgumentTest
+                                       manualPushArgumentTestData
+                                       "Passing push tests"
+  failingPushArgTests <- generateTests manualFailingPushTest
+                                       manualFailingPushTestData
+                                       "Failing push tests"
+  functionExtraction <- generateTests functionExtractionTest
+                                      functionExtractionTestData
+                                      "function extraction tests"
+  defaultMain $ testGroup "all tests" [tests, moreTests, passingRenameTests,
+      failingManualRenameTests, passingPushArgTests,
+        failingPushArgTests, functionExtraction]
+  --defaultMain $ testGetTypes
 
 inputDirectory :: FilePath
 inputDirectory = "Test/Tests/input"
 
 outputDirectory :: FilePath
 outputDirectory = "Test/Tests/output"
+
+importTestFileDirectory :: FilePath
+importTestFileDirectory = outputDirectory ++ "/" ++ "ImportTests"
+
+generateTests :: (a -> TestTree) -> [a] -> String -> IO TestTree
+generateTests f xs groupName = return $ testGroup groupName $ map f xs
 
 prettyPrintAll :: IO TestTree
 prettyPrintAll = runSameCompilationTestOnAllFiles prettyPrintFile "pretty-printing tests"
@@ -45,13 +69,11 @@ prettyPrintFile file = testCaseSteps file $ \step -> do
   where rewriteAll :: Text -> Text
         rewriteAll s = PrettyPrinter.prettyPrintAll (doNothing $ parse s file) (parse s file) s
 
-scopeAll :: IO TestTree
-scopeAll = runSameCompilationTestOnAllFiles scopeFile "Scoping tests"
-
 scopeFile :: FilePath -> TestTree
 scopeFile file = testCaseSteps file $ \step -> do
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
-  case scopeOnly $ parse fileContents file of
+  scoped <- scopeOnly $ parse fileContents file
+  case scoped of
     Left e -> assertFailure (unpack e)
     Right x -> do
          let result = PrettyPrinter.prettyPrintAll x (parse fileContents file) fileContents
@@ -63,6 +85,17 @@ typecheckingOracle whatToWrite file = do
   IO.writeFile outputLocation whatToWrite
   result@(exitCode, x, y) <- withCurrentDirectory outputDirectory $
       readProcessWithExitCode "agda" [file, "--allow-unsolved-metas"] ""
+  if exitCode == ExitSuccess
+  then return ()
+  else assertFailure $ "Output code does not compile as expected." ++ show result
+
+importCompileOracle :: Text -> String -> IO ()
+importCompileOracle whatToWrite file = do
+  --Prelude.putStrLn $  "Stuff we got to print: " ++ unpack whatToWrite
+  let outputLocation = outputDirectory ++ "/" ++ file
+  IO.writeFile outputLocation whatToWrite
+  result@(exitCode, x, y) <- withCurrentDirectory outputDirectory $
+      readProcessWithExitCode "agda" ["ImportTests/" ++ file] ""
   if exitCode == ExitSuccess
   then return ()
   else assertFailure $ "Output code does not compile as expected." ++ show result
@@ -87,36 +120,36 @@ manualFailingRenameTestData = [ ("Test.agda", 1166, "ys", "empty")
                               , ("Test.agda", 466, "m", "n")
                               ]
 
-manualRenameTests :: IO TestTree
-manualRenameTests = do
-  return $ testGroup "Manual rename tests" $ map manualRenameTest manualRenameTestData ++ map manualFailingRenameTest manualFailingRenameTestData
+
 
 manualFailingRenameTest :: (FilePath, Integer, Text, Text) -> TestTree
 manualFailingRenameTest a@(file, point, oldName, newName) =
- testCaseSteps file $ \step -> do
+ localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
   step $ "starting on test case" ++ show (a)
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
   let tree = parse fileContents file
-  case checkCommand tree point of
+  correctCommand <- checkCommand tree point
+  case correctCommand of
     Left x -> assertFailure (unpack x)
     Right x -> do
                 assertEqual "Intended indentifier and actual" oldName x
-                let newContents = rename tree point newName
+                newContents <- rename tree point newName
                 case newContents of
                   Left x -> return ()
                   Right y -> assertFailure "This test is not supposed to pass."
 
 manualRenameTest :: (FilePath, Integer, Text, Text) -> TestTree
 manualRenameTest a@(file, point, oldName, newName) =
- testCaseSteps file $ \step -> do
+ localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
   step $ "starting on test case" ++ show (a)
   fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
   let tree = parse fileContents file
-  case checkCommand tree point of
+  correctCommand <- checkCommand tree point
+  case correctCommand of
     Left x -> assertFailure (unpack x)
     Right x -> do
                 assertEqual "Intended indentifier and actual" oldName x
-                let newContents = rename tree point newName
+                newContents <- rename tree point newName
                 case newContents of
                   Left x -> assertFailure (unpack x)
                   Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
@@ -128,34 +161,61 @@ manualPushArgumentTestData = [ ("MoveArg.agda" , 78)
 
 manualFailingPushTestData :: [(FilePath, Integer)]
 manualFailingPushTestData = [ ("MoveArg.agda" , 235)
-                        --     ,("MoveArg.agda" , 249)
+                      --       ,("MoveArg.agda" , 249)
                              ]
 
-manualPushArgumentTests :: IO TestTree
-manualPushArgumentTests = do
-  return $ testGroup "Manual argument pushing tests" $ map manualPushArgumentTest manualPushArgumentTestData ++ map manualFailingPushTest manualFailingPushTestData
+
 
 manualPushArgumentTest :: (FilePath, Integer) -> TestTree
 manualPushArgumentTest (file , point) =
-  testCaseSteps file $ \step -> do
+  localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
     fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
     let tree = parse fileContents file
-    let newContents = pushArgument tree point
+    newContents <- pushArgument tree point
     case newContents of
       Left x -> assertFailure (unpack x)
       Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
 
 manualFailingPushTest :: (FilePath, Integer) -> TestTree
 manualFailingPushTest (file, point) = do
-  testCaseSteps file $ \step -> do
+  localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
     fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
     let tree = parse fileContents file
-    let newContents = pushArgument tree point
+    newContents <- pushArgument tree point
     case newContents of
       Left x -> return ()
       Right y ->  do
                    typecheckingOracle (prettyPrint y tree fileContents) file
                    assertFailure "Failing push test passed."
+
+functionExtractionTestData :: [(FilePath, Integer , Integer)]
+functionExtractionTestData = [ ("ExtractFunction.agda" , 179 , 184)
+                             ,("ExtractFunction.agda" , 284 , 295)
+                             ]
+
+functionExtractionTest :: (FilePath, Integer , Integer) -> TestTree
+functionExtractionTest (file , startPoint , endPoint) =
+  localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
+    fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
+    let tree = parse fileContents file
+    newContents <- extractFunction tree startPoint endPoint $ pack $ inputDirectory ++ "/" ++ file
+    case newContents of
+      Left x -> assertFailure (unpack x)
+      Right y -> do
+            --step $ "Parse tree: " ++ show newContents
+            importCompileOracle (PrettyPrinter.prettyPrintAll y tree fileContents) file
+
+testGetTypes :: TestTree
+testGetTypes =
+  localOption (mkTimeout 1000000) $
+    testCaseSteps "I'm a file name" $ \step -> do
+      Prelude.putStrLn "In test get types"
+      fileContents <- IO.readFile $ inputDirectory ++ "/" ++ "Bughunting.agda"
+      let tree = parse fileContents "I'm a name"
+      a <- MAlonzo.Code.Refactoring.extractFunction tree 5 5 $ pack $ inputDirectory ++ "/" ++ "Bughunting.agda"
+      --Prelude.putStrLn $ show a
+      return ()
+
   -- how to combine quickcheck with io
   --return $ testGroup "Manual rename tests with auto-generated new names" [testProperty "Rename does not crash" $ (\x -> ioProperty $ testScoping fileContents x)]
 

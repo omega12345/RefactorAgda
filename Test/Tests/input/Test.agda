@@ -7,7 +7,7 @@ data Nat : Set where zero : Nat -- Comment which gets eaten
 
 plus {- preserved comment  {- which may be nested -} -} :
 {- comment after Colon, also preserved-}
-{-comments are essentially whitespace, even through they get parsed-} Nat -> {-comment, not preserved-} Nat -> Nat
+{-comments are essentially whitespace, even through they get parsed-} Nat -> {-comment,     preserved-} Nat -> Nat
 {-# BUILTIN NATURAL
 Nat #-}
 

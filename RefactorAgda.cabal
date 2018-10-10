@@ -19,7 +19,7 @@ executable RefactorAgda
   main-is:             RefactorAgda.hs
   other-modules:       Brackets, ParseTree, Parser, PrettyPrinter
   other-extensions:    FlexibleContexts, NamedFieldPuns, OverloadedStrings, DuplicateRecordFields, DeriveDataTypeable
-  build-depends:       base >=4.10 && <4.11, megaparsec >=6.5, text >=1.2 && <1.3, ieee754, ghc-prim, wl-pprint-text >= 1.2
+  build-depends:       base >=4.10 && <4.11, megaparsec >=7, text >=1.2 && <1.3, ieee754, ghc-prim, wl-pprint-text >= 1.2, parser-combinators, filepath
   -- hs-source-dirs:
   default-language:    Haskell2010
 
@@ -33,5 +33,5 @@ test-suite test
   main-is:
     Test/TestDriver.hs
   build-depends:
-      tasty , base >=4.10 && <4.11, megaparsec >=6.5, text >=1.2 && <1.3,  ieee754, tasty-hunit, directory, process, ghc-prim, wl-pprint-text >= 1.2, tasty-quickcheck, QuickCheck
+      tasty , base >=4.10 && <4.11, megaparsec >=7, text >=1.2 && <1.3,  ieee754, tasty-hunit, directory, process, ghc-prim, wl-pprint-text >= 1.2, tasty-quickcheck, QuickCheck, parser-combinators, filepath
   other-modules: Brackets, ParseTree, Parser, PrettyPrinter, MAlonzo.Code.Refactoring, MAlonzo.Code.ParseTree

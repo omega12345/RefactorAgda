@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parser (Parser.parse, Parser) where
+module Parser (Parser.parse, Parser, functionType) where
 import Text.Megaparsec as M
 import Data.Void
 import Data.Functor.Identity
@@ -9,7 +9,7 @@ import Text.Megaparsec.Char
 import Data.Char
 import ParseTree
 import Brackets
-import Text.Megaparsec.Expr
+import Control.Monad.Combinators.Expr
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Text as T
 import Text.Read (readMaybe)
@@ -20,17 +20,19 @@ import Data.List (intersperse)
 
 parse :: Text -> String -> [ParseTree]
 parse s fileName = case M.parse manyDefs fileName s of
-                    Left x -> error $ parseErrorPretty x
+                    Left x -> error $ errorBundlePretty x
                     Right y -> y
 
 type Parser = ParsecT Void Text Identity
 
-makeIdentifier :: Text -> (Integer -> Bool) -> Identifier
-makeIdentifier name range = Identifier name range 0 0
+makeIdentifier :: Text -> (Integer -> RangePosition) -> Identifier
+makeIdentifier name range = Identifier name range 0 0 [] []
 
-makeSingleRangeFunction :: Int -> Int -> (Integer -> Bool)
+makeSingleRangeFunction :: Int -> Int -> (Integer -> RangePosition)
 makeSingleRangeFunction lastUnaffected lastAffected x =
-  x >= toInteger lastUnaffected && x <= toInteger lastAffected + 1
+  if x > (toInteger lastAffected + 1) then After
+    else if x < toInteger lastUnaffected then Before else Inside
+  --x >= toInteger lastUnaffected && x <= toInteger lastAffected + 1
 
 makeRange :: Int -> Int -> Range
 makeRange a z = Range (toInteger a) (toInteger z)
@@ -51,34 +53,51 @@ manyDefs = do skipTopLevelComments -- remove space at top of file
 
 pragmaParser :: Parser ParseTree
 pragmaParser = do
-  a <- getTokensProcessed
+  a <- getOffset
   string "{-#"
   space
-  string "BUILTIN"
-  space1
-  concept <- some upperChar
-  space1
-  definition <- ident
-  space1
+  prag <- try builtinPragma <|> optionsPragma
   string "#-}"
-  z <- getTokensProcessed
-  return $ Pragma (Builtin (pack concept) definition) $ makeRange a z
+  z <- getOffset
+  return $ Pragma prag $ makeRange a z
+
+builtinPragma :: Parser Pragma
+builtinPragma = do
+    string "BUILTIN"
+    space1
+    concept <- some upperChar
+    space1
+    definition <- ident
+    space1
+    return $ Builtin (pack concept) definition
+
+optionsPragma :: Parser Pragma
+optionsPragma = do
+  string "OPTIONS"
+  space1
+  opts <- sepEndBy option space1
+  return $ Option opts
+  where option :: Parser Text
+        option = do
+            string "--"
+            opt <- some $ letterChar <|> char '-'
+            return $ append "--" $ pack opt
 
 signatureParser :: Parser ParseTree
 signatureParser = do
-  a <- getTokensProcessed
+  a <- getOffset
   content <- L.lineFold skipTopLevelComments typeSignature
-  z <- getTokensProcessed
+  z <- getOffset
   return $ Signature content $ makeRange a z
 
 dataStructureParser :: Parser ParseTree
 dataStructureParser = do
-  a <- getTokensProcessed
+  a <- getOffset
   let parseEmptyDataStructure = L.lineFold skipTopLevelComments dataDefinition
-  let item = L.lineFold space typeSignature
+  let item = L.lineFold skipTopLevelComments typeSignature
   (emptyDataStructure, constructors) <-
     doBlockLikeStructure parseEmptyDataStructure item False skipTopLevelComments
-  z <- getTokensProcessed
+  z <- getOffset
   return $ emptyDataStructure {constructors = constructors, range = makeRange a z}
 
 functionDefinitionParser :: Parser ParseTree
@@ -92,45 +111,53 @@ moduleNameParser = lineFoldAndRange parseModuleName
 
 lineFoldAndRange :: (Parser () -> Parser ParseTree) -> Parser ParseTree
 lineFoldAndRange parser = do
-  a <- getTokensProcessed
+  a <- getOffset
   content <- L.lineFold skipTopLevelComments parser
-  z <- getTokensProcessed
+  z <- getOffset
   return $ content{range = makeRange a z}
 
 -- parsing open and import statements
 openImport :: Parser () -> Parser ParseTree
 openImport sc = try openAndImport <|> try importOnly <|> openOnly
   where openOnly = do string "open"
+                      c <- allCommentsUntilNonComment
                       sc
                       name <- qualifiedName
-                      return OpenImport { opened = True, imported = False, moduleName = name}
+                      return OpenImport { opened = True, imported = False, moduleName = name, comments = [c , []]}
         importOnly = do
                             string "import"
+                            c <- allCommentsUntilNonComment
                             sc
                             name <- qualifiedName
-                            return OpenImport { opened = False, imported = True, moduleName = name}
+                            return OpenImport { opened = False, imported = True, moduleName = name, comments = [[] , c]}
         openAndImport = do
           string "open"
+          c <- allCommentsUntilNonComment
           sc
           string "import"
+          d <- allCommentsUntilNonComment
           sc
           name <- qualifiedName
-          return OpenImport { opened = True, imported = True, moduleName = name}
+          return OpenImport { opened = True, imported = True, moduleName = name
+                    , comments = [c , d]}
 
 
 parseModuleName :: Parser () -> Parser ParseTree
 parseModuleName sc = do
   string "module"
+  c <- allCommentsUntilNonComment
   sc
   name <- qualifiedName
+  d <- allCommentsUntilNonComment
   sc
   string "where"
-  return ModuleName {moduleName = name}
+  return ModuleName {moduleName = name {commentsBefore = c , commentsAfter = d}}
 
 -- Function definition parsing
 functionDefinition :: Parser () -> Parser ParseTree
 functionDefinition sc = do
   definitionOf <- ident
+  c <- allCommentsUntilNonComment
   sc
   params <- endBy (parameter sc) sc
   string "="
@@ -138,16 +165,54 @@ functionDefinition sc = do
   body <- functionApp sc
   return $ FunctionDefinition definitionOf params body $ Range (-1) (-1)
 
-parameter :: Parser () -> Parser Parameter
-parameter sc = try (Lit . Ident <$> ident) <|>
+attachCommentsAfter :: [Comment] -> Expr -> Expr
+attachCommentsAfter cs (FunctionApp f x) =
+    FunctionApp f (attachCommentsAfter cs x)
+attachCommentsAfter cs (Ident identifier) =
+    Ident $ commentsAfterIdent cs identifier
+attachCommentsAfter cs x = x {commentsAf = commentsAf x ++ cs}
+
+attachCommentsBefore :: [Comment] -> Expr -> Expr
+attachCommentsBefore cs (FunctionApp f x) =
+    FunctionApp (attachCommentsAfter cs f) x
+attachCommentsBefore cs (Ident identifier) =
+    Ident $ commentsBeforeIdent cs identifier
+attachCommentsBefore cs x = x {commentsBef = cs ++ commentsBef x}
+
+commentsBeforeType :: [Comment] -> Type -> Type
+commentsBeforeType cs (Type t) = Type $ attachCommentsBefore cs t
+commentsBeforeType cs (a @ NamedArgument {arg}) = a {arg = addToId $ arg}
+      where addToId (TypeSignature n t) = TypeSignature
+               (commentsBeforeIdent cs n) t
+commentsBeforeType cs (FunctionType f x) = FunctionType (commentsBeforeType cs f) x
+
+commentsAfterType :: [Comment] -> Type -> Type
+commentsAfterType cs (Type t) = Type $ attachCommentsAfter cs t
+commentsAfterType cs (a @ NamedArgument {arg}) = a {arg = addToId $ arg}
+      where addToId (TypeSignature n t) = TypeSignature n $ commentsAfterType cs t
+commentsAfterType cs (FunctionType f x) = FunctionType f (commentsAfterType cs x)
+
+commentsBeforeIdent :: [Comment] -> Identifier -> Identifier
+commentsBeforeIdent cs i = i {commentsBefore = cs ++ commentsBefore i}
+
+commentsAfterIdent :: [Comment] -> Identifier -> Identifier
+commentsAfterIdent cs i = i {commentsAfter = commentsAfter i ++ cs}
+
+parameter :: Parser () -> Parser Expr
+parameter sc = try ( do x <- ident
+                        c <- allCommentsUntilNonComment
+                        return $ attachCommentsAfter c $ Ident x
+                   ) <|>
                do -- unlike normal function application, this needs to be
                -- wrapped in parentheses
                  string "("
+                 c <- allCommentsUntilNonComment
                  sc
-                 x <- paramFunctionApp sc
+                 x <- functionApp sc
+                 d <- allCommentsUntilNonComment
                  sc
                  string ")"
-                 return x
+                 return $ attachCommentsBefore c $ attachCommentsAfter d x
 
 
 
@@ -155,71 +220,83 @@ parameter sc = try (Lit . Ident <$> ident) <|>
 dataDefinition :: Parser () -> Parser ParseTree
 dataDefinition sc = do
   string "data"
+  c <- allCommentsUntilNonComment
   sc
   name <- ident
+  d <- allCommentsUntilNonComment
   sc
   parameters <- sepEndBy sign sc
-  sc
+  --sc
   string ":"
+  e <- allCommentsUntilNonComment
   sc
   indexInfo <- functionType sc
   sc
+  f <- allCommentsUntilNonComment
   string "where"
-  return $ DataStructure name parameters indexInfo [] $ Range (-1) (-1)
+  g <- allCommentsUntilNonComment
+  return $ DataStructure
+              (commentsAfterIdent d $ commentsBeforeIdent c name)
+              parameters
+              (commentsBeforeType e $ commentsAfterType f indexInfo) [] (Range (-1) (-1)) [g]
   where sign = do
           string "("
+          c <- allCommentsUntilNonComment
           sc
           x <- typeSignature sc
+          let (TypeSignature funcName funcType ) = x
+          d <- allCommentsUntilNonComment
           sc
           string ")"
-          return x
+          e <- allCommentsUntilNonComment
+          return $ TypeSignature
+                    (commentsBeforeIdent c funcName)
+                    $ commentsAfterType (d ++ e) funcType
 
 -- Type signature parsing
 
 typeSignature :: Parser () -> Parser TypeSignature
 typeSignature sc = do
  name <- ident
- comment1 <- allCommentsUntilNonComment
+ c <- allCommentsUntilNonComment
  sc
  string ":"
- comment2 <- allCommentsUntilNonComment
+ d <- allCommentsUntilNonComment
  sc
  kind <- functionType sc
- return $ TypeSignature name kind [comment1, comment2]
+ --sc
+ return $ TypeSignature (commentsAfterIdent c name) $ commentsBeforeType d kind
 
 -- Expression parsing
 
 hole :: Parser Expr
-hole = questionMark <|>
-      flatNestedStructure "{!" "!}" Hole textInside
+hole = questionMark <|> do
+      a <- getOffset
+      c <- flatNestedStructure "{!" "!}"
+        (\x -> Hole {textInside = x , commentsBef = [] , commentsAf = []})
+         textInside
+      z <- getOffset
+      return $ c {position = makeRange a z}
       where questionMark :: Parser Expr
             questionMark = do
+              a <- getOffset
               string "?"
-              return $ Hole "{! !}"
+              z <- getOffset
+              return $ Hole "{! !}" (makeRange a z) [] []
 
-numLit :: Parser IdentOrLiteral
-numLit = do
+literal :: Parser Expr
+literal = do
+  a <- getOffset
   x <- potentialNamePart
+  z <- getOffset
   case (readMaybe $ unpack x) :: Maybe Integer of
     Nothing -> fail $ unpack x ++ "is not an int literal"
-    Just y -> return $ NumLit y
-
-paramFunctionApp :: Parser () -> Parser Parameter
-paramFunctionApp sc = makeExprParserWithParens
-                 sc
-                 (try (Lit <$> numLit) <|> (Lit . Ident <$> ident))
-                 operatorTable
-      where whitespaceAsOperator :: Parser Parameter
-            whitespaceAsOperator = do
-                sc
-                lookAhead $ try $ paramFunctionApp sc
-            operatorTable ::  [[Operator Parser Parameter]]
-            operatorTable = [[InfixL $ ParamApp <$ try whitespaceAsOperator]]
+    Just y -> return $ NumLit y (makeRange a z)  [] []
 
 functionApp :: Parser () -> Parser Expr
 functionApp sc = makeExprParserWithParens
                  sc
-                 (try (ExprLit <$> numLit) <|> try ( ExprLit . Ident <$> ident) <|> hole)
+                 (try literal <|> try ( Ident <$> ident) <|> hole)
                  operatorTable
       where whitespaceAsOperator :: Parser Expr
             whitespaceAsOperator = do
@@ -241,11 +318,12 @@ functionType sc =
         arrowParser :: Parser ()
         arrowParser = do
           sc
-          string "->"
+          string "→" <|> string "->"
           sc
 
 typeParser :: Parser () -> Parser Type
-typeParser sc = Type <$> functionApp sc
+typeParser sc =
+    Type <$> functionApp sc
 
 implicitArgParser :: Parser () -> Parser Type
 implicitArgParser = anyArgParser "{" "}" (\ x -> NamedArgument x False)
@@ -267,9 +345,9 @@ anyArgParser opening closing constructor sc = do
 -- Identifier parsing
 ident :: Parser Identifier
 ident = do
-  lastBefore <- getTokensProcessed
+  lastBefore <- getOffset
   x <- namePart
-  lastToken <- getTokensProcessed
+  lastToken <- getOffset
   return $ makeIdentifier x (makeSingleRangeFunction lastBefore lastToken)
 
 namePart :: Parser Text
@@ -286,9 +364,9 @@ keywords = T.words " = | -> : ? \\ → ∀ λ abstract constructor data field fo
 
 qualifiedName :: Parser Identifier
 qualifiedName = do
-  lastBefore <- getTokensProcessed
+  lastBefore <- getOffset
   x <- sepBy namePart (string ".")
-  lastToken <- getTokensProcessed
+  lastToken <- getOffset
   return $ makeIdentifier (T.concat $ Data.List.intersperse "." x)
       (makeSingleRangeFunction lastBefore lastToken)
 
@@ -299,7 +377,7 @@ potentialNamePart = do
    where requirement :: Parser Char
          requirement = satisfy req
          req :: Char -> Bool
-         req x = isPrint x && notElem x (" @.(){};_"::String)
+         req x = isPrint x && notElem x (" @.(){};_\""::String)
 
 -- Comment parsing
 
@@ -308,23 +386,31 @@ allCommentsUntilNonComment = lookAhead $ space >> sepEndBy (lineComment <|> mult
 
 lineComment :: Parser Comment
 lineComment = do
+  a <- getOffset
   string "--"
   content <- many $ satisfy (\x -> notElem x ("\r\n"::String))
-  return $ LineComment $ pack content
+  z <- getOffset
+  return $ Comment (pack content) (makeRange a z) False
 
 multiLineComment :: Parser Comment
 multiLineComment = do
   x <- observing $ lookAhead $ try $ string "{-#"
   case x of
     Right _ -> fail "Found start of pragma"
-    _ -> flatNestedStructure "{-" "-}" MultiLineComment content
+    _ -> do
+          a <- getOffset
+          c <- flatNestedStructure "{-" "-}"
+                    (\x -> Comment {content = x })
+                    content
+          z <- getOffset
+          return $ c {codePos = makeRange a z , isMultiLine = True}
 
 flatNestedStructure :: Text -> Text -> (Text -> a) -> (a -> Text)-> Parser a
 flatNestedStructure start end constructor deconstructor =
     constructor . T.concat <$> (p >> manyTill e n)
     where e = (\x -> append start $ append (deconstructor x) end ) <$> flatNestedStructure start end constructor deconstructor <|> f
           f :: Parser Text
-          f = singleton <$> anyChar
+          f = singleton <$> anySingle
           p = string start
           n = string end
 

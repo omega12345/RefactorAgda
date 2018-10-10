@@ -1,5 +1,4 @@
 -- Home to all functions creating, modifying or removing ScopeEnv or ScopeState
-{-# OPTIONS --allow-unsolved-metas #-}
 module ScopeState where
 open import Data.List using (List) renaming ([] to emptyList ; map to listMap ; _∷_ to _cons_)
 open import Data.String renaming (_++_ to _then_)
@@ -21,6 +20,7 @@ open import Relation.Binary.Core
 open import Relation.Binary.PropositionalEquality.TrustMe
 open import Data.Unit
 open import AgdaHelperFunctions
+import IO.Primitive as Prim
 
 data ScopeType : Set where
   funcDef : ScopeType
@@ -28,6 +28,7 @@ data ScopeType : Set where
   addFuncToModule : ScopeType
   addVariableToType : ScopeType
   topLevel : ScopeType
+
 
 data Scope (maxVars : ℕ) (maxScopes : ℕ): Set where
  mkScope : (scopeType : ScopeType) ->
@@ -53,37 +54,39 @@ data ScopeEnv : Set where
         (current : Fin maxScopes) ->
         ScopeEnv
 
+
+
 ScopeState : Set -> Set
-ScopeState = StateT  (ScopeEnv) (String ⊎_)
+ScopeState = StateT  (ScopeEnv) (λ x -> Prim.IO (String ⊎ x))
 
-bind : {x y : Set} -> String ⊎ x -> (x -> String ⊎ y) -> String ⊎ y
-bind (inj₁ x) f = inj₁ x
-bind (inj₂ y) f = f y
+--open RawMonadState (StateTMonadState ScopeEnv {M = IOStringError} EitherOverIO) public
 
-SumMonad : RawMonad (String ⊎_)
-SumMonad  = record
-  { return  = inj₂
-  ; _>>=_ = bind
-  }
+liftIO : {a : Set} -> Prim.IO a -> ScopeState a
+liftIO action e = do
+  a <- action
+  return (inj₂ (a , e))
+  where open RawMonad IOMonad
 
-open RawMonadState (StateTMonadState ScopeEnv {M = String ⊎_} SumMonad) public
-
-run : {a : Set} ->  ScopeState a -> ScopeEnv -> (String ⊎ a)
-run s e = convert (s e)
-  where convert : {a : Set} -> String ⊎ (Σ a (λ x -> ScopeEnv)) -> String ⊎ a
-        convert (inj₁ x) = inj₁ x
-        convert (inj₂ (fst , snd)) = inj₂ fst
-
+runScopeState : {a : Set} -> ScopeState a -> ScopeEnv -> Prim.IO (String ⊎ a)
+runScopeState s e = do
+  inj₂ ( result , e) <- s e
+    where inj₁ e -> return $ inj₁ e
+  return $ inj₂ result
+  where open RawMonad IOMonad -- brings return and bind for the Prim.IO monad into scope
 fail : {a : Set} -> String -> ScopeState a
-fail message = λ _ → inj₁ message
+fail message = λ x -> Prim.return $ inj₁ message
 
+-- Try an action and return an error message on failure rather than
+-- propagating the failure. All state changes are rolled back.
 try : {a : Set} -> ScopeState a -> ScopeState (String ⊎ a)
-try st = do
-  environment <- get
-  inj₂ (x , newEnv) <- return (st environment)
-    where inj₁ error -> return (inj₁ error)
-  put newEnv
-  return (inj₂ x)
+try st environment = do
+  inj₂ (x , newEnv) <- st environment
+    where inj₁ error -> return $ inj₂ $ inj₁ error , environment
+  return $ inj₂ $ inj₂ x , newEnv
+  where open RawMonad IOMonad
+
+open RawMonadState (StateTMonadState ScopeEnv (SumMonadT IOMonad String)) public
+
 
 newEnv : ScopeEnv
 newEnv = env [] 1 ((mkScope topLevel nothing emptyList) ∷ [])   fzero
@@ -131,20 +134,20 @@ addExistingVar (x ∷ xs) (fsuc atPos) what = x ∷ addExistingVar xs atPos what
 
 -- returns input identifier with id and scope id filled in
 addIdentifier :  Identifier -> ScopeState Identifier
-addIdentifier (identifier name isInRange scope declaration) = do
+addIdentifier (identifier name isInRange scope declaration {c} {c2}) = do
   env {numVars} vars maxScopes scopes current <- get
   let newScopes = (addVar scopes current (fromℕ numVars))
   put (env (vars ∷ʳ name) maxScopes
      newScopes
        current)
-  return (identifier name isInRange (toℕ current) numVars)
+  return (identifier name isInRange (toℕ current) numVars {c} {c2})
 
 raiseEnclosingScope : {maxVars maxScopes : ℕ} -> Scope maxVars maxScopes
     -> Scope maxVars (1 + maxScopes)
 raiseEnclosingScope (mkScope scopeType enclosing declaredVars) =
     mkScope scopeType (maybemap newRaise enclosing) declaredVars
 
-addScope : (b : ScopeType) -> (s : ScopeEnv ) → String ⊎ Σ ℕ (λ x → ScopeEnv)
+addScope : (b : ScopeType) ->  ScopeState ℕ
 addScope scopeType = do
   env vars maxScopes scopes current <- get
   let newScopes = map raiseEnclosingScope scopes ∷ʳ
@@ -173,10 +176,10 @@ saveAndReturnToScope ss = do
   put newEnv
   return c
 
-setScope : (n : ℕ) -> (s : ScopeEnv ) → String ⊎ Σ ℕ (λ x → ScopeEnv)
+setScope : (n : ℕ) -> ScopeState ℕ
 setScope n (env vars maxScopes scopes current) with suc n Data.Nat.≤? maxScopes
-setScope n (env vars maxScopes scopes current) | yes p = inj₂ (n , (env vars maxScopes scopes (fromℕ≤ p)))
-setScope n e | no ¬p = inj₁ "Tried to set scope to invalid value"
+setScope n (env vars maxScopes scopes current) | yes p = return n (env vars maxScopes scopes (fromℕ≤ p)) --inj₂ (n , (env vars maxScopes scopes (fromℕ≤ p)))
+setScope n e | no ¬p = Prim.return $ inj₁ "Tried to set scope to invalid value" --inj₁ "Tried to set scope to invalid value"
 
 filter : {A : Set} -> (A -> Bool) -> List A -> List A
 filter f emptyList = emptyList
@@ -197,7 +200,7 @@ lookup s = saveAndReturnToScope (do
   emptyList <- return ( filter (λ x -> veclookup x vars == s) decl)
     where x cons xs -> return (toℕ x)
   just n <- return enclosing
-    where _ -> fail "There is no enclosing scope"
+    where _ -> fail $ "There is no enclosing scope while looking up: " then s
   setScope (toℕ n)
   lookup s)
 
@@ -205,27 +208,27 @@ lookup s = saveAndReturnToScope (do
 -- given that the name has already been declared
 
 fillInIdentifier : Identifier -> ScopeState Identifier
-fillInIdentifier (identifier name isInRange scope declaration) = do
+fillInIdentifier (identifier name isInRange scope declaration {c} {c2}) = do
   x <- saveAndReturnToScope (lookup name)
   suc n <- return x
     where zero -> fail ("Identifier not found in file: " then name)
   env vars maxScopes scopes current <- get
-  return (identifier name isInRange (toℕ current) (suc n))
+  return (identifier name isInRange (toℕ current) (suc n) {c} {c2})
 
 -- at the place where something is declared, you can only use simple names.
 -- TODO: Actually, this should be adequately bounded by the current scope. But how to implement?
 
 access : Identifier -> ScopeState Identifier
-access (identifier name isInRange scope declaration) = do
+access (identifier name isInRange scope declaration {c} {c2}) = do
   env {numVars} vars maxScopes scopes current <- get
   yes p <- return (suc declaration Data.Nat.≤? numVars)
     where _ -> fail "Parse tree scoping has produced a nonsense declaration"
   let newName = veclookup (fromℕ≤ p) vars
   anything <- setScope scope
-  identifier n r s d <- fillInIdentifier (identifier newName isInRange scope declaration)
+  identifier n r s d <- fillInIdentifier (identifier newName isInRange scope declaration {c} {c2})
   yes x <- return (d Data.Nat.≟ declaration)
     where no y -> fail "Could not perform name change because this would change the meaning of the code"
-  return (identifier n r s d)
+  return (identifier n r s d {c} {c2})
 
 mapState : {A B : Set} -> (A -> ScopeState B) -> List A -> ScopeState (List B)
 mapState f emptyList = return emptyList
@@ -235,8 +238,8 @@ mapState f (x cons list) = do
   return (x1 cons xs)
 
 addContentReferenceToModuleTop : TypeSignature -> ScopeState ℕ
-addContentReferenceToModuleTop (typeSignature (identifier name isInRange scope 0) funcType comments) = fail "Trying to add signature which has not been scoped"
-addContentReferenceToModuleTop (typeSignature (identifier name isInRange scope declaration) funcType comments) = do
+addContentReferenceToModuleTop (typeSignature (identifier name isInRange scope 0) funcType) = fail "Trying to add signature which has not been scoped"
+addContentReferenceToModuleTop (typeSignature (identifier name isInRange scope declaration) funcType) = do
   env {numVars } vars maxScopes scopes current <- get
   yes p <- return (suc declaration Data.Nat.≤? numVars)
     where _ -> fail "Found messed-up scoping"
@@ -285,5 +288,5 @@ sameId (identifier name isInRange scope declaration) (identifier name₁ isInRan
 --TODO: This may return the same name several times even when this is not valid.
 getUniqueIdentifier : ScopeState Identifier
 getUniqueIdentifier = do
-  id <- addIdentifier $ identifier "renameMe" (λ _ -> false) 0 0
+  id <- addIdentifier $ identifier "renameMe" (λ _ -> before) 0 0 {emptyList} {emptyList}
   return id

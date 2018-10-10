@@ -6,7 +6,7 @@ data ParseTree = Signature { signature :: TypeSignature
                            , range :: Range
                            }
               |  FunctionDefinition { definitionOf :: Identifier
-                                    , params :: [Parameter]
+                                    , params :: [Expr]
                                     , body :: Expr
                                     , range :: Range
                                     }
@@ -15,6 +15,7 @@ data ParseTree = Signature { signature :: TypeSignature
                                , indexInfo :: Type
                                , constructors :: [TypeSignature]
                                , range :: Range
+                               , comments :: [[Comment]] -- implicit
                                }
               |  Pragma { pragma :: Pragma
                         , range :: Range
@@ -23,6 +24,7 @@ data ParseTree = Signature { signature :: TypeSignature
                             , imported :: Bool
                             , moduleName :: Identifier
                             , range :: Range
+                            , comments :: [[Comment]] -- implicit
                             }
               |  ModuleName { moduleName :: Identifier
                             , range :: Range } deriving (Show, Eq)
@@ -30,24 +32,19 @@ data ParseTree = Signature { signature :: TypeSignature
 
 data TypeSignature = TypeSignature { funcName :: Identifier
                                    , funcType :: Type
-                                   , comments :: [[Comment]]
                                    } deriving (Show, Eq)
 
-data IdentOrLiteral = NumLit {value :: Integer -- implicit
-                              }
-                    | Ident {identifier :: Identifier} deriving (Show, Eq)
-
--- parameters to a function definition are a subset of things valid
--- on the right-hand side of a definition
-
-data Parameter = Lit {paramLit :: IdentOrLiteral}
-               | ParamApp { paramFunc :: Parameter
-                          , paramArg :: Parameter
-                          } deriving (Show, Eq)
-
-data Expr = ExprLit {literal :: IdentOrLiteral}
+data Expr = NumLit {value :: Integer -- implicit
+                   , position :: Range -- implicit
+                   , commentsBef :: [Comment] -- implicit
+                   , commentsAf :: [Comment] -- implicit
+                   }
+           | Ident {identifier :: Identifier}
            | Hole {textInside :: Text -- implicit
-                    }
+                  , position :: Range -- implicit
+                  , commentsBef :: [Comment] -- implicit
+                  , commentsAf :: [Comment] -- implicit
+                  }
            | FunctionApp { function :: Expr
                          , argument :: Expr
                          }
@@ -66,22 +63,28 @@ data Range = Range { lastUnaffected :: Integer
                    } deriving (Show, Eq)
 
 data Identifier = Identifier { name :: Text
-                             , isInRange :: Integer -> Bool
+                             , isInRange :: Integer -> RangePosition
                              , scope :: Integer
                              , declaration :: Integer
+                             , commentsBefore :: [Comment] -- implicit
+                             , commentsAfter :: [Comment] -- implicit
                              }
 
+data RangePosition = Before {} | Inside {} | After {}
+
 instance Eq Identifier where
-  (Identifier x _ _ _) == (Identifier y _ _ _) = x == y
+  (Identifier x _ _ _ _ _) == (Identifier y _ _ _ _ _) = x == y
 
 instance Show Identifier where
-  show (Identifier x _ _ _) = show x
+  show (Identifier x _ _ _ _ _) = show x
 
 data Pragma = Builtin { concept :: Text
                       , definition :: Identifier
-                      } deriving (Show, Eq)
+                      }
+              | Option { opts :: [Text]
+                       } deriving (Show, Eq)
 
-data Comment = LineComment { content :: Text  -- implicit
-                            }
-               | MultiLineComment { content :: Text -- implicit
-                                  } deriving (Show, Eq)
+data Comment = Comment { content :: Text  -- implicit
+                       , codePos :: Range -- implicit
+                       , isMultiLine :: Bool -- implicit
+                       } deriving (Show, Eq)

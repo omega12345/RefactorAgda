@@ -7,22 +7,21 @@ open import Data.List
 
 data ParseTree : Set
 data TypeSignature : Set
-data IdentOrLiteral : Set
-data Parameter : Set
 data Expr : Set
 data Type : Set
 data Range : Set
 data Identifier : Set
+data RangePosition : Set
 data Pragma : Set
 data Comment : Set
 
 
 data ParseTree where
   signature : (signature : TypeSignature) -> (range : Range) -> ParseTree
-  functionDefinition : (definitionOf : Identifier) -> (params : List Parameter) -> (body : Expr) -> (range : Range) -> ParseTree
-  dataStructure : (dataName : Identifier) -> (parameters : List TypeSignature) -> (indexInfo : Type) -> (constructors : List TypeSignature) -> (range : Range) -> ParseTree
+  functionDefinition : (definitionOf : Identifier) -> (params : List Expr) -> (body : Expr) -> (range : Range) -> ParseTree
+  dataStructure : (dataName : Identifier) -> (parameters : List TypeSignature) -> (indexInfo : Type) -> (constructors : List TypeSignature) -> (range : Range) -> {comments : List (List Comment)} -> ParseTree
   pragma : (pragma : Pragma) -> (range : Range) -> ParseTree
-  openImport : (opened : Bool) -> (imported : Bool) -> (moduleName : Identifier) -> (range : Range) -> ParseTree
+  openImport : (opened : Bool) -> (imported : Bool) -> (moduleName : Identifier) -> (range : Range) -> {comments : List (List Comment)} -> ParseTree
   moduleName : (moduleName : Identifier) -> (range : Range) -> ParseTree
 
 {-# COMPILE GHC ParseTree = data ParseTree
@@ -35,37 +34,21 @@ data ParseTree where
 ) #-}
 
 data TypeSignature where
-  typeSignature : (funcName : Identifier) -> (funcType : Type) -> (comments : List (List Comment)) -> TypeSignature
+  typeSignature : (funcName : Identifier) -> (funcType : Type) -> TypeSignature
 
 {-# COMPILE GHC TypeSignature = data TypeSignature
 ( TypeSignature
 ) #-}
 
-data IdentOrLiteral where
-  numLit : {value : ℕ} -> IdentOrLiteral
-  ident : (identifier : Identifier) -> IdentOrLiteral
-
-{-# COMPILE GHC IdentOrLiteral = data IdentOrLiteral
-( NumLit
-| Ident
-) #-}
-
-data Parameter where
-  lit : (paramLit : IdentOrLiteral) -> Parameter
-  paramApp : (paramFunc : Parameter) -> (paramArg : Parameter) -> Parameter
-
-{-# COMPILE GHC Parameter = data Parameter
-( Lit
-| ParamApp
-) #-}
-
 data Expr where
-  exprLit : (literal : IdentOrLiteral) -> Expr
-  hole : {textInside : String} -> Expr
+  numLit : {value : ℕ} -> {position : Range} -> {commentsBef : List Comment} -> {commentsAf : List Comment} -> Expr
+  ident : (identifier : Identifier) -> Expr
+  hole : {textInside : String} -> {position : Range} -> {commentsBef : List Comment} -> {commentsAf : List Comment} -> Expr
   functionApp : (function : Expr) -> (argument : Expr) -> Expr
 
 {-# COMPILE GHC Expr = data Expr
-( ExprLit
+( NumLit
+| Ident
 | Hole
 | FunctionApp
 ) #-}
@@ -89,24 +72,35 @@ data Range where
 ) #-}
 
 data Identifier where
-  identifier : (name : String) -> (isInRange : (ℕ -> Bool)) -> (scope : ℕ) -> (declaration : ℕ) -> Identifier
+  identifier : (name : String) -> (isInRange : (ℕ -> RangePosition)) -> (scope : ℕ) -> (declaration : ℕ) -> {commentsBefore : List Comment} -> {commentsAfter : List Comment} -> Identifier
 
 {-# COMPILE GHC Identifier = data Identifier
 ( Identifier
 ) #-}
 
+data RangePosition where
+  before : RangePosition
+  inside : RangePosition
+  after : RangePosition
+
+{-# COMPILE GHC RangePosition = data RangePosition
+( Before
+| Inside
+| After
+) #-}
+
 data Pragma where
   builtin : (concept : String) -> (definition : Identifier) -> Pragma
+  option : (opts : List String) -> Pragma
 
 {-# COMPILE GHC Pragma = data Pragma
 ( Builtin
+| Option
 ) #-}
 
 data Comment where
-  lineComment : {content : String} -> Comment
-  multiLineComment : {content : String} -> Comment
+  comment : {content : String} -> {codePos : Range} -> {isMultiLine : Bool} -> Comment
 
 {-# COMPILE GHC Comment = data Comment
-( LineComment
-| MultiLineComment
+( Comment
 ) #-}

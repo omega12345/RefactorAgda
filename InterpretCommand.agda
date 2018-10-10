@@ -34,26 +34,21 @@ firstActualValue (just x ∷ list) = just x
 firstActualValue (nothing ∷ list) = firstActualValue list
 
 findInIdentifier : ℕ -> Identifier -> Maybe ℕ
-findInIdentifier n (identifier name isInRange₁ scope declaration) =
-  if (isInRange₁ n) then (just declaration) else nothing
-
-findInIdentOrLiteral : ℕ -> IdentOrLiteral -> Maybe ℕ
-findInIdentOrLiteral n numLit = nothing
-findInIdentOrLiteral n (ident identifier₁) = findInIdentifier n identifier₁
+findInIdentifier n (identifier name isInRange₁ scope declaration)
+  with isInRange₁ n
+... | inside = just declaration
+... | x = nothing
 
 findInExpr : ℕ -> Expr -> Maybe ℕ
-findInExpr n (exprLit literal) = findInIdentOrLiteral n literal
+findInExpr n numLit = nothing
+findInExpr n (ident i) = findInIdentifier n i
 findInExpr n hole = nothing
 findInExpr n (functionApp e e₁) = firstActualValue (findInExpr n e ∷ findInExpr n e₁ ∷ [])
-
-findInParam : ℕ -> Parameter -> Maybe ℕ
-findInParam n (lit paramLit) = findInIdentOrLiteral n paramLit
-findInParam n (paramApp p p₁) = firstActualValue (findInParam n p ∷ findInParam n p₁ ∷ [])
 
 findInType : ℕ -> Type -> Maybe ℕ
 
 findInSignature : ℕ -> TypeSignature -> Maybe ℕ
-findInSignature n (typeSignature funcName funcType comments) =
+findInSignature n (typeSignature funcName funcType) =
   firstActualValue (findInIdentifier n funcName ∷ findInType n funcType ∷ [])
 
 
@@ -64,12 +59,11 @@ findInType n (functionType t t₁) = firstActualValue (findInType n t ∷ findIn
 findInParseTree : ℕ -> ParseTree -> Maybe ℕ
 findInParseTree n (signature signature₁ range₁) = findInSignature n signature₁
 findInParseTree n (functionDefinition definitionOf params body range₁) =
-  firstActualValue (findInIdentifier n definitionOf ∷ findInExpr n body ∷ map (findInParam n) params)
+  firstActualValue (findInIdentifier n definitionOf ∷ findInExpr n body ∷ map (findInExpr n) params)
 findInParseTree n (dataStructure dataName parameters indexInfo constructors range₁) = firstActualValue ((findInIdentifier n dataName ∷ findInType n indexInfo ∷ map (findInSignature n) parameters) ++ map (findInSignature n) constructors)
 findInParseTree n (pragma (builtin concept definition) range₁) =
   findInIdentifier n definition
-findInParseTree n (openImport opened imported moduleName₁ range₁) = nothing
-findInParseTree n (moduleName moduleName₁ range₁) = nothing
+findInParseTree _ _ = nothing
 
 getDeclarationIDForPoint : List ParseTree -> ℕ -> Maybe ℕ
 getDeclarationIDForPoint [] point = nothing
@@ -89,7 +83,7 @@ getArgNumber point currArgNumber (functionType t t₁) = do
 getArgNumber point currArgNumber t = fail "Point seems to be in result."
 
 getFuncIdAndArgNumberInParseTree : ℕ -> ParseTree -> ScopeState (ℕ × ℕ)
-getFuncIdAndArgNumberInParseTree n (signature (typeSignature (identifier name isInRange₁ scope declaration) funcType comments) range₁) = do
+getFuncIdAndArgNumberInParseTree n (signature (typeSignature (identifier name isInRange₁ scope declaration) funcType) range₁) = do
     argNum <- getArgNumber n zero funcType
     return $ declaration , argNum
 getFuncIdAndArgNumberInParseTree _ _ = fail "Point not in signature"
