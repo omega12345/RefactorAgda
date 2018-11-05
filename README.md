@@ -7,7 +7,7 @@ make
 
 cabal install --enable-tests
 
-The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error about not finding a module, but that's okay.
+The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error "Could not find module ‘Control.Monad.Combinators.Expr’", but that's okay.
 
 <h1>RefactorAgda</h1>
 
