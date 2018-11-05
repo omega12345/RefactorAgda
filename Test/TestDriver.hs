@@ -189,13 +189,20 @@ manualFailingPushTest (file, point) = do
                    assertFailure "Failing push test passed."
 
 functionExtractionTestData :: [(FilePath, Integer , Integer)]
-functionExtractionTestData = [ ("ExtractFunction.agda" , 179 , 184)
-                             ,("ExtractFunction.agda" , 284 , 295)
+functionExtractionTestData = [ ("ExtractFunction.agda" , 204 , 207)
+                             ,("ExtractFunction.agda" , 312 , 323)
+                             , ("ExtractDependent.agda" , 241, 242)
+                             , ("ExtractDependent.agda" , 398, 401)
+                             , ("ExtractDependent.agda" , 579, 580)
+                             , ("ExtractDependent.agda" , 735, 738)
+                             , ("ExtractCaseSplit.agda", 142, 146)
+                             , ("ExtractCaseSplit.agda", 145, 146)
+                             , ("ExtractCaseSplit.agda", 237, 243)
                              ]
 
 functionExtractionTest :: (FilePath, Integer , Integer) -> TestTree
 functionExtractionTest (file , startPoint , endPoint) =
-  localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
+  localOption (mkTimeout 15000000) $ testCaseSteps file $ \step -> do
     fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
     let tree = parse fileContents file
     newContents <- extractFunction tree startPoint endPoint $ pack $ inputDirectory ++ "/" ++ file

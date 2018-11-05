@@ -39,7 +39,8 @@ data Expr = NumLit {value :: Integer -- implicit
                    , commentsBef :: [Comment] -- implicit
                    , commentsAf :: [Comment] -- implicit
                    }
-           | Ident {identifier :: Identifier}
+           | Ident {identifier :: Identifier
+                    }
            | Hole {textInside :: Text -- implicit
                   , position :: Range -- implicit
                   , commentsBef :: [Comment] -- implicit
@@ -48,6 +49,11 @@ data Expr = NumLit {value :: Integer -- implicit
            | FunctionApp { function :: Expr
                          , argument :: Expr
                          }
+           | Implicit {expr :: Expr}
+           | Underscore {position :: Range -- implicit
+                        , commentsBef :: [Comment] -- implicit
+                        , commentsAf :: [Comment] -- implicit
+                        }
            deriving (Show, Eq)
 
 data Type = Type { expression :: Expr }
@@ -66,6 +72,7 @@ data Identifier = Identifier { name :: Text
                              , isInRange :: Integer -> RangePosition
                              , scope :: Integer
                              , declaration :: Integer
+                             , inScope :: Bool -- implicit
                              , commentsBefore :: [Comment] -- implicit
                              , commentsAfter :: [Comment] -- implicit
                              }
@@ -73,10 +80,10 @@ data Identifier = Identifier { name :: Text
 data RangePosition = Before {} | Inside {} | After {}
 
 instance Eq Identifier where
-  (Identifier x _ _ _ _ _) == (Identifier y _ _ _ _ _) = x == y
+  (Identifier x _ _ _ _ _ _) == (Identifier y _ _ _ _ _ _) = x == y
 
 instance Show Identifier where
-  show (Identifier x _ _ _ _ _) = show x
+  show (Identifier x _ y z a b c) = show x
 
 data Pragma = Builtin { concept :: Text
                       , definition :: Identifier

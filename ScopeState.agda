@@ -20,6 +20,7 @@ open import Relation.Binary.Core
 open import Relation.Binary.PropositionalEquality.TrustMe
 open import Data.Unit
 open import AgdaHelperFunctions
+open import Data.Nat.Show
 import IO.Primitive as Prim
 
 data ScopeType : Set where
@@ -134,13 +135,13 @@ addExistingVar (x ∷ xs) (fsuc atPos) what = x ∷ addExistingVar xs atPos what
 
 -- returns input identifier with id and scope id filled in
 addIdentifier :  Identifier -> ScopeState Identifier
-addIdentifier (identifier name isInRange scope declaration {c} {c2}) = do
+addIdentifier (identifier name isInRange scope declaration {b}{c} {c2}) = do
   env {numVars} vars maxScopes scopes current <- get
   let newScopes = (addVar scopes current (fromℕ numVars))
   put (env (vars ∷ʳ name) maxScopes
      newScopes
        current)
-  return (identifier name isInRange (toℕ current) numVars {c} {c2})
+  return (identifier name isInRange (toℕ current) numVars {b}{c} {c2})
 
 raiseEnclosingScope : {maxVars maxScopes : ℕ} -> Scope maxVars maxScopes
     -> Scope maxVars (1 + maxScopes)
@@ -208,27 +209,27 @@ lookup s = saveAndReturnToScope (do
 -- given that the name has already been declared
 
 fillInIdentifier : Identifier -> ScopeState Identifier
-fillInIdentifier (identifier name isInRange scope declaration {c} {c2}) = do
+fillInIdentifier (identifier name isInRange scope declaration {b}{c} {c2}) = do
   x <- saveAndReturnToScope (lookup name)
   suc n <- return x
     where zero -> fail ("Identifier not found in file: " then name)
   env vars maxScopes scopes current <- get
-  return (identifier name isInRange (toℕ current) (suc n) {c} {c2})
+  return (identifier name isInRange (toℕ current) (suc n) {b}{c} {c2})
 
 -- at the place where something is declared, you can only use simple names.
 -- TODO: Actually, this should be adequately bounded by the current scope. But how to implement?
 
 access : Identifier -> ScopeState Identifier
-access (identifier name isInRange scope declaration {c} {c2}) = do
+access (identifier name isInRange scope declaration {b}{c} {c2}) = do
   env {numVars} vars maxScopes scopes current <- get
   yes p <- return (suc declaration Data.Nat.≤? numVars)
     where _ -> fail "Parse tree scoping has produced a nonsense declaration"
   let newName = veclookup (fromℕ≤ p) vars
   anything <- setScope scope
-  identifier n r s d <- fillInIdentifier (identifier newName isInRange scope declaration {c} {c2})
+  identifier n r s d <- fillInIdentifier (identifier newName isInRange scope declaration {b}{c} {c2})
   yes x <- return (d Data.Nat.≟ declaration)
     where no y -> fail "Could not perform name change because this would change the meaning of the code"
-  return (identifier n r s d {c} {c2})
+  return (identifier n r s d {b}{c} {c2})
 
 mapState : {A B : Set} -> (A -> ScopeState B) -> List A -> ScopeState (List B)
 mapState f emptyList = return emptyList
@@ -285,8 +286,26 @@ sameId (identifier name isInRange scope declaration) (identifier name₁ isInRan
 sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) | yes p = true
 sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) | no ¬p = false
 
---TODO: This may return the same name several times even when this is not valid.
-getUniqueIdentifier : ScopeState Identifier
-getUniqueIdentifier = do
-  id <- addIdentifier $ identifier "renameMe" (λ _ -> before) 0 0 {emptyList} {emptyList}
+isNameInUse : String -> ScopeState Bool
+isNameInUse s = do
+  env vars maxScopes scopes current <- get
+  return $ Data.List.any (λ x -> x == s) (Data.Vec.toList vars)
+
+-- terminates because vars is not infinite.
+{-# TERMINATING #-}
+makeUniqueName : ℕ -> ScopeState String
+makeUniqueName n = do
+    let proposedName = Data.String.concat $ "renameMe" Data.List.∷ (Data.Nat.Show.show n) Data.List.∷ emptyList
+    b <- isNameInUse proposedName
+    if b
+      then makeUniqueName $ suc n
+      else return proposedName
+
+getUniqueIdentifierWithInScope : Bool -> ScopeState Identifier
+getUniqueIdentifierWithInScope b = do
+  name <- makeUniqueName 0
+  id <- addIdentifier $ identifier name (λ _ -> before) 0 0 {b}{emptyList} {emptyList}
   return id
+
+getUniqueIdentifier : ScopeState Identifier
+getUniqueIdentifier = getUniqueIdentifierWithInScope true

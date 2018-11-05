@@ -63,7 +63,6 @@ rename' program point newName = do
     just decl <- return $ getDeclarationIDForPoint scoped point
       where nothing -> fail "Cursor is not in renameable instance"
     noerror <- replaceID decl newName
-    --liftIO test
     matchUpNames scoped
 
 

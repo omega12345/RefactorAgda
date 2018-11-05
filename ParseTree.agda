@@ -45,12 +45,16 @@ data Expr where
   ident : (identifier : Identifier) -> Expr
   hole : {textInside : String} -> {position : Range} -> {commentsBef : List Comment} -> {commentsAf : List Comment} -> Expr
   functionApp : (function : Expr) -> (argument : Expr) -> Expr
+  implicit : (expr : Expr) -> Expr
+  underscore : {position : Range} -> {commentsBef : List Comment} -> {commentsAf : List Comment} -> Expr
 
 {-# COMPILE GHC Expr = data Expr
 ( NumLit
 | Ident
 | Hole
 | FunctionApp
+| Implicit
+| Underscore
 ) #-}
 
 data Type where
@@ -72,7 +76,7 @@ data Range where
 ) #-}
 
 data Identifier where
-  identifier : (name : String) -> (isInRange : (ℕ -> RangePosition)) -> (scope : ℕ) -> (declaration : ℕ) -> {commentsBefore : List Comment} -> {commentsAfter : List Comment} -> Identifier
+  identifier : (name : String) -> (isInRange : (ℕ -> RangePosition)) -> (scope : ℕ) -> (declaration : ℕ) -> {inScope : Bool} -> {commentsBefore : List Comment} -> {commentsAfter : List Comment} -> Identifier
 
 {-# COMPILE GHC Identifier = data Identifier
 ( Identifier

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Parser (Parser.parse, Parser, functionType) where
+module Parser (Parser.parse, Parser, functionType, typeSignature) where
 import Text.Megaparsec as M
 import Data.Void
 import Data.Functor.Identity
@@ -25,12 +25,12 @@ parse s fileName = case M.parse manyDefs fileName s of
 
 type Parser = ParsecT Void Text Identity
 
-makeIdentifier :: Text -> (Integer -> RangePosition) -> Identifier
-makeIdentifier name range = Identifier name range 0 0 [] []
+makeIdentifier :: Text -> (Integer -> RangePosition) -> Bool -> Identifier
+makeIdentifier name range inScope = Identifier name range 0 0 inScope [] []
 
 makeSingleRangeFunction :: Int -> Int -> (Integer -> RangePosition)
 makeSingleRangeFunction lastUnaffected lastAffected x =
-  if x > (toInteger lastAffected + 1) then After
+  if x > (toInteger lastAffected) then After
     else if x < toInteger lastUnaffected then Before else Inside
   --x >= toInteger lastUnaffected && x <= toInteger lastAffected + 1
 
@@ -169,14 +169,14 @@ attachCommentsAfter :: [Comment] -> Expr -> Expr
 attachCommentsAfter cs (FunctionApp f x) =
     FunctionApp f (attachCommentsAfter cs x)
 attachCommentsAfter cs (Ident identifier) =
-    Ident $ commentsAfterIdent cs identifier
+    Ident (commentsAfterIdent cs identifier)
 attachCommentsAfter cs x = x {commentsAf = commentsAf x ++ cs}
 
 attachCommentsBefore :: [Comment] -> Expr -> Expr
 attachCommentsBefore cs (FunctionApp f x) =
     FunctionApp (attachCommentsAfter cs f) x
 attachCommentsBefore cs (Ident identifier) =
-    Ident $ commentsBeforeIdent cs identifier
+    Ident (commentsBeforeIdent cs identifier)
 attachCommentsBefore cs x = x {commentsBef = cs ++ commentsBef x}
 
 commentsBeforeType :: [Comment] -> Type -> Type
@@ -296,7 +296,8 @@ literal = do
 functionApp :: Parser () -> Parser Expr
 functionApp sc = makeExprParserWithParens
                  sc
-                 (try literal <|> try ( Ident <$> ident) <|> hole)
+                 (try literal <|> try ( (\x -> Ident x) <$> ident) <|>
+                    try ( (\x -> Ident $ makeOutOfScope x) <$> (string "." >> ident)) <|> hole)
                  operatorTable
       where whitespaceAsOperator :: Parser Expr
             whitespaceAsOperator = do
@@ -304,6 +305,7 @@ functionApp sc = makeExprParserWithParens
                 lookAhead $ try $ functionApp sc
             operatorTable ::  [[Operator Parser Expr]]
             operatorTable = [[InfixL $ FunctionApp <$ try whitespaceAsOperator]]
+            makeOutOfScope a = a {inScope = False}
 
 -- Type parsing
 
@@ -344,11 +346,22 @@ anyArgParser opening closing constructor sc = do
 
 -- Identifier parsing
 ident :: Parser Identifier
-ident = do
+ident = identInScope <|> identNotInScope
+
+identInScope :: Parser Identifier
+identInScope = do
   lastBefore <- getOffset
   x <- namePart
   lastToken <- getOffset
-  return $ makeIdentifier x (makeSingleRangeFunction lastBefore lastToken)
+  return $ makeIdentifier x (makeSingleRangeFunction lastBefore lastToken) True
+
+identNotInScope :: Parser Identifier
+identNotInScope = do
+      lastBefore <- getOffset
+      string "."
+      x <- namePart
+      lastToken <- getOffset
+      return $ makeIdentifier x (makeSingleRangeFunction lastBefore lastToken) False
 
 namePart :: Parser Text
 namePart = do
@@ -368,7 +381,7 @@ qualifiedName = do
   x <- sepBy namePart (string ".")
   lastToken <- getOffset
   return $ makeIdentifier (T.concat $ Data.List.intersperse "." x)
-      (makeSingleRangeFunction lastBefore lastToken)
+      (makeSingleRangeFunction lastBefore lastToken) True
 
 potentialNamePart :: Parser Text
 potentialNamePart = do
@@ -377,7 +390,7 @@ potentialNamePart = do
    where requirement :: Parser Char
          requirement = satisfy req
          req :: Char -> Bool
-         req x = isPrint x && notElem x (" @.(){};_\""::String)
+         req x = isPrint x && notElem x (" @.(){};_\"\\"::String)
 
 -- Comment parsing
 

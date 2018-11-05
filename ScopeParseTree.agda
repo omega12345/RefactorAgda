@@ -92,5 +92,5 @@ scopeParseTreeList : List ParseTree -> ScopeState (List ParseTree)
 scopeParseTreeList program = do
   --TODO: fix sloppy workaround
   put newEnv
-  addIdentifier (identifier "Set" (λ _ -> before) 0 0 {[]} {[]})
+  addIdentifier (identifier "Set" (λ _ -> before) 0 0 {true}{[]} {[]})
   mapState scopeParseTree program

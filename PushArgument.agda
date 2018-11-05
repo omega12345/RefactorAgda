@@ -106,6 +106,8 @@ x doesNotAppearInExp hole = return tt
 x doesNotAppearInExp functionApp y y₁ = do
     x doesNotAppearInExp y
     x doesNotAppearInExp y₁
+x doesNotAppearInExp implicit x1 = x doesNotAppearInExp x1
+x doesNotAppearInExp underscore = return tt
 
 _doesNotAppearIn_ : Identifier -> Type -> ScopeState ⊤
 _doesNotAppearInArg_ : Identifier -> TypeSignature -> ScopeState ⊤
@@ -147,13 +149,13 @@ pushArg singleType n = fail "Can't push the result to the right"
 pushArgument : List ParseTree -> ℕ -> ℕ -> ScopeState (List ParseTree)
 pushArgument [] funcID whichArgument = fail "funcId not found in pushArgument"
 pushArgument (signature (typeSignature (identifier name isInRange scope declaration) funcType) range₁ ∷ code) funcID whichArgument with compare declaration funcID
-pushArgument (signature (typeSignature (identifier name isInRange scope declaration {b} {a}) funcType) range₁ ∷ code) .declaration whichArgument | equal .declaration = do
+pushArgument (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) funcType) range₁ ∷ code) .declaration whichArgument | equal .declaration = do
     newType <- pushArg funcType whichArgument
-    newCode <- mapState ( pushUsages $ usageData (identifier name isInRange scope declaration {b} {a}) (isExplicit funcType) whichArgument) code
-    return $ (signature (typeSignature (identifier name isInRange scope declaration {b} {a}) newType) range₁ ∷ newCode)
-pushArgument (signature (typeSignature (identifier name isInRange scope declaration {b} {a}) funcType) range₁ ∷ code) funcID whichArgument | _ = do
+    newCode <- mapState ( pushUsages $ usageData (identifier name isInRange scope declaration {e}{b} {a}) (isExplicit funcType) whichArgument) code
+    return $ (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) newType) range₁ ∷ newCode)
+pushArgument (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) funcType) range₁ ∷ code) funcID whichArgument | _ = do
   newxs <- pushArgument code funcID whichArgument
-  return $ (signature (typeSignature (identifier name isInRange scope declaration {b} {a}) funcType) range₁) ∷ newxs
+  return $ (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) funcType) range₁) ∷ newxs
 pushArgument (x ∷ xs) funcID whichArgument = do
   newxs <- pushArgument xs funcID whichArgument
   return $ x ∷ newxs

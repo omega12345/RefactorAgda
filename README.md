@@ -7,14 +7,14 @@ make
 
 cabal install --enable-tests
 
-The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4
+The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error about not finding a module, but that's okay.
 
 <h1>RefactorAgda</h1>
 
 This project is a refactoring tool for a subset of Agda called Baby-Agda. This subset is intended to be extended gradually to include the entire Agda language. It does not currently have a main function but the functionality can be tested with cabal's testing framework.
 
 <h1>Currently supported refactorings</h1>
-Reindent, rename, push (reorder) function arguments, function extraction on functions with non-dependent types.
+Reindent, rename, push (reorder) function arguments, function extraction.
 
 <h1> Missing a refactoring? </h1>
-Feel free to open an issue if a desired refactoring is not on this list
+Feel free to open an issue if a desired refactoring is not on this list.

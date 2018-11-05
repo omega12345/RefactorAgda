@@ -44,6 +44,8 @@ findInExpr n numLit = nothing
 findInExpr n (ident i) = findInIdentifier n i
 findInExpr n hole = nothing
 findInExpr n (functionApp e e₁) = firstActualValue (findInExpr n e ∷ findInExpr n e₁ ∷ [])
+findInExpr n (implicit e) = findInExpr n e
+findInExpr n underscore = nothing
 
 findInType : ℕ -> Type -> Maybe ℕ
 
