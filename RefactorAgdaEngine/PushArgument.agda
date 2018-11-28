@@ -159,3 +159,5 @@ pushArgument (signature (typeSignature (identifier name isInRange scope declarat
 pushArgument (x ∷ xs) funcID whichArgument = do
   newxs <- pushArgument xs funcID whichArgument
   return $ x ∷ newxs
+
+-- 161, 7900 before, without implicit argument support

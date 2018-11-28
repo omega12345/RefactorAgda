@@ -21,7 +21,7 @@ data Constructor = Constructor {consname :: Text
 -- | parses all Haskell data structures in input, ignoring everything else.
 parse :: Text -> [DataStructure]
 parse s = case M.parse pickOutData "File name for error messages" s of
-              Left x -> error $ parseErrorPretty x
+              Left x -> error $ errorBundlePretty x
               Right y -> y
 
 type Parser = ParsecT Void Text Identity

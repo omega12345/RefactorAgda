@@ -13,7 +13,7 @@ open import Data.Unit
 postulate getTypes : List ParseTree -> ℕ -> List Expr -> String -> Prim.IO (List Type)
 {-# COMPILE GHC getTypes = getTypes #-}
 
-postulate getEnvironment : List ParseTree -> ℕ -> String -> Prim.IO (List TypeSignature)
+postulate getEnvironment : List  ParseTree -> ℕ -> String -> Prim.IO (List TypeSignature)
 {-# COMPILE GHC getEnvironment = getEnvironment #-}
 
 postulate output : String -> Prim.IO ⊤

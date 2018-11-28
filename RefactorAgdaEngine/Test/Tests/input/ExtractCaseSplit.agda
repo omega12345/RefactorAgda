@@ -13,4 +13,4 @@ open import Data.List
 
 func2 : List Bool -> Bool
 func2 [] = true
-func2 (x ∷ x₁) = not ((func2 x₁))
+func2 (x ∷ x₁) = not (func2 x₁)

@@ -1,0 +1,42 @@
+{
+  "context-menu": {
+    "atom-text-editor": [
+      {
+        "label": "Rename",
+        "command": "refactor-agda:rename"
+      },
+      {
+        "label": "Extract function",
+        "command": "refactor-agda:extract-function"
+      },
+      {
+        "label": "Push argument",
+        "command": "refactor-agda:push-argument"
+      }
+    ]
+  },
+  "menu": [
+    {
+      "label": "Packages",
+      "submenu": [
+        {
+          "label": "refactor-agda",
+          "submenu": [
+            {
+              "label": "Rename",
+              "command": "refactor-agda:rename"
+            },
+            {
+              "label": "Extract function",
+              "command": "refactor-agda:extract-function"
+            },
+            {
+              "label": "Push argument",
+              "command": "refactor-agda:push-argument"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

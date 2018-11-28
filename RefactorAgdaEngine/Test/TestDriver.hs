@@ -42,10 +42,10 @@ main = do
   --defaultMain $ testGetTypes
 
 inputDirectory :: FilePath
-inputDirectory = "Test/Tests/input"
+inputDirectory = "RefactorAgdaEngine/Test/Tests/input"
 
 outputDirectory :: FilePath
-outputDirectory = "Test/Tests/output"
+outputDirectory = "RefactorAgdaEngine/Test/Tests/output"
 
 importTestFileDirectory :: FilePath
 importTestFileDirectory = outputDirectory ++ "/" ++ "ImportTests"

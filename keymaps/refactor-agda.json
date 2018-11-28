@@ -1,0 +1,7 @@
+{
+  "atom-workspace": {
+    "ctrl-k ctrl-r": "refactor-agda:rename",
+    "ctrl-k ctrl-p": "refactor-agda:push-argument",
+    "ctrl-k ctrl-e": "refactor-agda:extract-function"
+  }
+}

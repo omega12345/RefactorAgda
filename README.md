@@ -1,13 +1,15 @@
 This tool has been tested with ghc version 8.2.2.
 
 <h1>Installation instructions</h1>
-Run the following commands in terminal:
+Download the code to a suitable location, go into the RefactorAgda folder in the terminal and run:
 
 make
 
 cabal install --enable-tests
 
 The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error about not finding a module, but that's okay.
+
+To be able to try the Atom package, you should either put the downloaded folder itself into ~/.atom/packages or put a folder alias there.
 
 <h1>RefactorAgda</h1>
 
