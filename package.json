@@ -9,7 +9,7 @@
     "atom-workspace": ["refactor-agda:rename", "refactor-agda:push-argument", "refactor-agda:extract-function"]
   },
   "repository": "https://github.com/atom/refactor-agda",
-  "license": "MIT",
+  "license": "BSD3",
   "engines": {
     "atom": ">=1.0.0 <2.0.0"
   },
