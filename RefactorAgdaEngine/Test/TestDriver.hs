@@ -36,9 +36,10 @@ main = do
   functionExtraction <- generateTests functionExtractionTest
                                       functionExtractionTestData
                                       "function extraction tests"
-  defaultMain $ testGroup "all tests" [tests, moreTests, passingRenameTests,
-      failingManualRenameTests, passingPushArgTests,
-        failingPushArgTests, functionExtraction]
+  defaultMain $ testGroup "all tests" [passingPushArgTests]
+  --[tests, moreTests, passingRenameTests,
+    --  failingManualRenameTests, passingPushArgTests,
+      --  failingPushArgTests, functionExtraction]
   --defaultMain $ testGetTypes
 
 inputDirectory :: FilePath
@@ -168,7 +169,7 @@ manualFailingPushTestData = [ ("MoveArg.agda" , 235)
 
 manualPushArgumentTest :: (FilePath, Integer) -> TestTree
 manualPushArgumentTest (file , point) =
-  localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
+  localOption (mkTimeout 5000000) $ testCaseSteps file $ \step -> do
     fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
     let tree = parse fileContents file
     newContents <- pushArgument tree point

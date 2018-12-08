@@ -72,12 +72,12 @@ getEnvironment program holeNumber filePath =
       putStrLn $ "Environment found" ++ show env
       return env
 
-getTypes :: [ParseTree] -> Integer ->  [Expr] -> Text -> IO [Type]
+getTypes :: [ParseTree] -> Integer ->  [Expr] -> Text -> IO [Expr]
 getTypes program holeNumber exps filePath =
   askAgda program filePath $ \file (hin, hout, processHandle) ->
       mapM (getType hin hout file holeNumber) exps
 
-getType :: Handle -> Handle -> String -> Integer -> Expr  -> IO Type
+getType :: Handle -> Handle -> String -> Integer -> Expr  -> IO Expr
 getType hin hout filename holeNumber expr = do
   let exprString = unpack $ printExprForAgda expr
   putStrLn $ "Expression to get type from: " ++ show expr
@@ -90,14 +90,14 @@ getType hin hout filename holeNumber expr = do
 
   return $ findType answer3
 
-findType :: String -> Type
+findType :: String -> Expr
 findType s = case M.parse understandType "in InteractWithAgda" (pack s) of
                     Left x -> error $ errorBundlePretty x
                     Right y -> y
 
 
 
-understandType :: Parser Type
+understandType :: Parser Expr
 understandType = do
     string "(agda2-info-action \"*Inferred Type*\" \""
     functionType space

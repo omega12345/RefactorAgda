@@ -166,31 +166,23 @@ functionDefinition sc = do
   return $ FunctionDefinition definitionOf params body $ Range (-1) (-1)
 
 attachCommentsAfter :: [Comment] -> Expr -> Expr
-attachCommentsAfter cs (FunctionApp f x) =
-    FunctionApp f (attachCommentsAfter cs x)
+attachCommentsAfter cs (FunctionApp f x b) =
+    FunctionApp f (attachCommentsAfter cs x) b
 attachCommentsAfter cs (Ident identifier) =
     Ident (commentsAfterIdent cs identifier)
+attachCommentsAfter cs (a @ NamedArgument {arg}) = a {arg = addToId $ arg}
+      where addToId (TypeSignature n t) = TypeSignature n $ attachCommentsAfter cs t
 attachCommentsAfter cs x = x {commentsAf = commentsAf x ++ cs}
 
 attachCommentsBefore :: [Comment] -> Expr -> Expr
-attachCommentsBefore cs (FunctionApp f x) =
-    FunctionApp (attachCommentsAfter cs f) x
+attachCommentsBefore cs (FunctionApp f x b) =
+    FunctionApp (attachCommentsAfter cs f) x b
 attachCommentsBefore cs (Ident identifier) =
     Ident (commentsBeforeIdent cs identifier)
-attachCommentsBefore cs x = x {commentsBef = cs ++ commentsBef x}
-
-commentsBeforeType :: [Comment] -> Type -> Type
-commentsBeforeType cs (Type t) = Type $ attachCommentsBefore cs t
-commentsBeforeType cs (a @ NamedArgument {arg}) = a {arg = addToId $ arg}
+attachCommentsBefore cs (a @ NamedArgument {arg}) = a {arg = addToId $ arg}
       where addToId (TypeSignature n t) = TypeSignature
                (commentsBeforeIdent cs n) t
-commentsBeforeType cs (FunctionType f x) = FunctionType (commentsBeforeType cs f) x
-
-commentsAfterType :: [Comment] -> Type -> Type
-commentsAfterType cs (Type t) = Type $ attachCommentsAfter cs t
-commentsAfterType cs (a @ NamedArgument {arg}) = a {arg = addToId $ arg}
-      where addToId (TypeSignature n t) = TypeSignature n $ commentsAfterType cs t
-commentsAfterType cs (FunctionType f x) = FunctionType f (commentsAfterType cs x)
+attachCommentsBefore cs x = x {commentsBef = cs ++ commentsBef x}
 
 commentsBeforeIdent :: [Comment] -> Identifier -> Identifier
 commentsBeforeIdent cs i = i {commentsBefore = cs ++ commentsBefore i}
@@ -238,7 +230,7 @@ dataDefinition sc = do
   return $ DataStructure
               (commentsAfterIdent d $ commentsBeforeIdent c name)
               parameters
-              (commentsBeforeType e $ commentsAfterType f indexInfo) [] (Range (-1) (-1)) [g]
+              (attachCommentsBefore e $ attachCommentsAfter f indexInfo) [] (Range (-1) (-1)) [g]
   where sign = do
           string "("
           c <- allCommentsUntilNonComment
@@ -251,7 +243,7 @@ dataDefinition sc = do
           e <- allCommentsUntilNonComment
           return $ TypeSignature
                     (commentsBeforeIdent c funcName)
-                    $ commentsAfterType (d ++ e) funcType
+                    $ attachCommentsAfter (d ++ e) funcType
 
 -- Type signature parsing
 
@@ -265,7 +257,7 @@ typeSignature sc = do
  sc
  kind <- functionType sc
  --sc
- return $ TypeSignature (commentsAfterIdent c name) $ commentsBeforeType d kind
+ return $ TypeSignature (commentsAfterIdent c name) $ attachCommentsBefore d kind
 
 -- Expression parsing
 
@@ -304,36 +296,36 @@ functionApp sc = makeExprParserWithParens
                 sc
                 lookAhead $ try $ functionApp sc
             operatorTable ::  [[Operator Parser Expr]]
-            operatorTable = [[InfixL $ FunctionApp <$ try whitespaceAsOperator]]
+            operatorTable = [[InfixL $ (\ x y -> FunctionApp x y False) <$ try whitespaceAsOperator]]
             makeOutOfScope a = a {inScope = False}
 
 -- Type parsing
 
-functionType :: Parser () -> Parser Type
+functionType :: Parser () -> Parser Expr
 functionType sc =
   makeExprParserWithParens
   sc
   (try (typeParser sc) <|> try (implicitArgParser sc) <|> explicitArgParser sc)
   arrowTable
-  where arrowTable :: [[Operator Parser Type]]
-        arrowTable = [[InfixR $ FunctionType <$ try arrowParser]]
+  where arrowTable :: [[Operator Parser Expr]]
+        arrowTable = [[InfixR $ (\ x y -> FunctionApp x y True) <$ try arrowParser]]
         arrowParser :: Parser ()
         arrowParser = do
           sc
           string "→" <|> string "->"
           sc
 
-typeParser :: Parser () -> Parser Type
+typeParser :: Parser () -> Parser Expr
 typeParser sc =
-    Type <$> functionApp sc
+    functionApp sc
 
-implicitArgParser :: Parser () -> Parser Type
+implicitArgParser :: Parser () -> Parser Expr
 implicitArgParser = anyArgParser "{" "}" (\ x -> NamedArgument x False)
 
-explicitArgParser :: Parser () -> Parser Type
+explicitArgParser :: Parser () -> Parser Expr
 explicitArgParser = anyArgParser "(" ")" (\ x -> NamedArgument x True)
 
-anyArgParser :: Text -> Text -> (TypeSignature -> Type) -> Parser () -> Parser Type
+anyArgParser :: Text -> Text -> (TypeSignature -> Expr) -> Parser () -> Parser Expr
 anyArgParser opening closing constructor sc = do
   string opening
   sc

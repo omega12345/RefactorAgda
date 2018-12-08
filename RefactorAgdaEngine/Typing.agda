@@ -10,7 +10,7 @@ open import Data.Unit
   import InteractWithAgda
 #-}
 
-postulate getTypes : List ParseTree -> ℕ -> List Expr -> String -> Prim.IO (List Type)
+postulate getTypes : List ParseTree -> ℕ -> List Expr -> String -> Prim.IO (List Expr)
 {-# COMPILE GHC getTypes = getTypes #-}
 
 postulate getEnvironment : List  ParseTree -> ℕ -> String -> Prim.IO (List TypeSignature)

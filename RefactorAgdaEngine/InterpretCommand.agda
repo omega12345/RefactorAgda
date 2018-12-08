@@ -39,6 +39,8 @@ findInIdentifier n (identifier name isInRange₁ scope declaration)
 ... | inside = just declaration
 ... | x = nothing
 
+findInSignature : ℕ -> TypeSignature -> Maybe ℕ
+
 findInExpr : ℕ -> Expr -> Maybe ℕ
 findInExpr n numLit = nothing
 findInExpr n (ident i) = findInIdentifier n i
@@ -46,23 +48,17 @@ findInExpr n hole = nothing
 findInExpr n (functionApp e e₁) = firstActualValue (findInExpr n e ∷ findInExpr n e₁ ∷ [])
 findInExpr n (implicit e) = findInExpr n e
 findInExpr n underscore = nothing
+findInExpr n (namedArgument arg) = findInSignature n arg
 
-findInType : ℕ -> Type -> Maybe ℕ
 
-findInSignature : ℕ -> TypeSignature -> Maybe ℕ
 findInSignature n (typeSignature funcName funcType) =
-  firstActualValue (findInIdentifier n funcName ∷ findInType n funcType ∷ [])
-
-
-findInType n (type expression) = findInExpr n expression
-findInType n (namedArgument arg) = findInSignature n arg
-findInType n (functionType t t₁) = firstActualValue (findInType n t ∷ findInType n t₁ ∷ [])
+  firstActualValue (findInIdentifier n funcName ∷ findInExpr n funcType ∷ [])
 
 findInParseTree : ℕ -> ParseTree -> Maybe ℕ
 findInParseTree n (signature signature₁ range₁) = findInSignature n signature₁
 findInParseTree n (functionDefinition definitionOf params body range₁) =
   firstActualValue (findInIdentifier n definitionOf ∷ findInExpr n body ∷ map (findInExpr n) params)
-findInParseTree n (dataStructure dataName parameters indexInfo constructors range₁) = firstActualValue ((findInIdentifier n dataName ∷ findInType n indexInfo ∷ map (findInSignature n) parameters) ++ map (findInSignature n) constructors)
+findInParseTree n (dataStructure dataName parameters indexInfo constructors range₁) = firstActualValue ((findInIdentifier n dataName ∷ findInExpr n indexInfo ∷ map (findInSignature n) parameters) ++ map (findInSignature n) constructors)
 findInParseTree n (pragma (builtin concept definition) range₁) =
   findInIdentifier n definition
 findInParseTree _ _ = nothing
@@ -77,9 +73,9 @@ getDeclarationIDForPoint (x ∷ list) point | true = findInParseTree point x
 -- for argument rearranging
 
 --TODO fix this when adding more detailed source position data
-getArgNumber : ℕ -> ℕ -> Type -> ScopeState ℕ
-getArgNumber point currArgNumber (functionType t t₁) = do
-  just _ <- return $ findInType point t
+getArgNumber : ℕ -> ℕ -> Expr -> ScopeState ℕ
+getArgNumber point currArgNumber (functionApp t t₁ {true}) = do
+  just _ <- return $ findInExpr point t
     where _ -> getArgNumber point (currArgNumber + 1) t₁
   return currArgNumber
 getArgNumber point currArgNumber t = fail "Point seems to be in result."

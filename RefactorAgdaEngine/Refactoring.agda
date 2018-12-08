@@ -76,7 +76,6 @@ pushArgument' program point = do
   scoped <- scopeParseTreeList program
   funcID , argNumber <- getFuncIdAndArgNumber scoped point
   push scoped funcID argNumber
-
 pushArgument : List ParseTree -> ℕ -> IO (String ⊎ List ParseTree)
 pushArgument program point = runScopeState (pushArgument' program point) newEnv
 

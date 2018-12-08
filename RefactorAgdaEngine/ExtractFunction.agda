@@ -3,7 +3,7 @@ open import Data.List
 open import ParseTree
 open import Data.Nat
 open import Data.String hiding (_++_)
-open import ScopeState using (ScopeState ; ScopeEnv ; replaceID ; liftIO ; sameId ; getUniqueIdentifier)
+open import ScopeState using (ScopeState ; ScopeEnv ; replaceID ; liftIO ; getUniqueIdentifier)
 open import ScopeParseTree
 open import AgdaHelperFunctions
 open import Typing
@@ -15,6 +15,7 @@ open import Data.Maybe
 open import Relation.Nullary
 open import Data.Unit using (⊤ ; tt)
 open import Data.Nat.Show
+open import ParseTreeOperations
 
 --TODO: actually, it is okay if the module has no name - in this case we do not need to rename it.
 getIDForModule : List ParseTree -> ScopeState Identifier
@@ -61,6 +62,13 @@ isInside (range lastUnaffected lastAffected) start end
 ... | no p | no q = true
 ... | p | q = false
 
+isInIdent : Identifier -> ℕ -> ℕ -> Bool
+isInIdent (identifier name isInRange scope declaration {b}{c} {c2}) start end
+  with isInRange start | isInRange end
+... | after | _ = false
+... | _ | before = false
+... | _ | _ = true
+
 findPartInExpr : Expr -> ℕ -> ℕ -> ExtractionState Bool
 findPartInExpr (numLit {value}
     {r} {c} {c2}) start end
@@ -70,13 +78,12 @@ findPartInExpr (numLit {value}
       put $ extEnv x y (just(λ a -> a)) (just $ numLit {value} {r} {c} {c2}) h g n
       return true
 ... | false = return false
-findPartInExpr (ident (identifier name isInRange scope declaration {b}{c} {c2})) start end
-  with isInRange start | isInRange end
-... | after | _ = return  false
-... | _ | before = return false
-... | _ | _ = do
+findPartInExpr (ident id) start end
+  with isInIdent id start end
+... | false = return false
+... | true = do
     extEnv x y f expr h g n <- get
-    put $ extEnv x y (just(λ a -> a)) (just $ ident (identifier name isInRange scope declaration {b}{c} {c2})) h g n
+    put $ extEnv x y (just(λ a -> a)) (just $ ident id) h g n
     return true
 findPartInExpr (hole {t} {p} {c} {c2}) start end
     with isInside p start end
@@ -85,7 +92,7 @@ findPartInExpr (hole {t} {p} {c} {c2}) start end
   put $ extEnv x y (just(λ a -> a)) (just $ hole {t} {p} {c} {c2}) h g n
   return true
 ... | false = return false
-findPartInExpr (functionApp e e₁) start end = do
+findPartInExpr (functionApp e e₁ {false}) start end = do
     true <- findPartInExpr e₁ start end
       where false -> do
                   true <- findPartInExpr e start end
@@ -94,21 +101,43 @@ findPartInExpr (functionApp e e₁) start end = do
                   -- so we rebuild it with rebuilder f and put it in the functionApp
                   extEnv x y (just f) expr h g n <- get
                     where _ -> fail "Got no function despite extraction"
-                  put $ extEnv x y (just(λ x -> functionApp (f x) e₁)) expr h g n
+                  put $ extEnv x y (just(λ x -> functionApp (f x) e₁ {false})) expr h g n
                   return true
     extEnv x y (just f) expr h g n <- get
       where _ -> fail "Got no function despite extraction"
     true <- findPartInExpr e start end
       where false -> do -- extract only (part of) e₁
-                put $ extEnv x y (just (λ a -> functionApp e $ f a)) expr h g n
+                put $ extEnv x y (just (λ a -> functionApp e (f a) {false})) expr h g n
                 return true
     -- at this point we realize we want to extract the entire
     -- functionApp
     -- Therefore, we need to extract entire e and e₁ regardless of
     -- how far into it the selection extends.
-    extEnv x y f expr h g n <- get
-    put $ extEnv x y (just (λ x -> x)) (just $ functionApp e e₁) h g n
+    --extEnv x y f expr h g n <- get
+    put $ extEnv x y (just (λ x -> x)) (just $ functionApp e e₁ {false}) h g n
     return true
+findPartInExpr (functionApp e e₁ {true}) start end = do
+  true <- findPartInExpr e start end
+    where false -> do
+           true <- findPartInExpr e₁ start end
+            where false -> return false
+           extEnv x y (just f) expr h g n <- get
+            where _ -> fail "Got no function despite extraction"
+           put $ extEnv x y (just(λ x -> functionApp e (f x) {true})) expr h g n
+           return true
+  extEnv x y (just f) expr h g n <- get
+   where _ -> fail "Got no function despite extraction"
+  namedArgument sign <- return e
+   where _ -> do
+          -- e is not a named argument so can be extracted by itself
+          true <- findPartInExpr e₁ start end
+           where false -> do
+                  put $ extEnv x y (just (λ a -> functionApp (f e) e₁ {true})) expr h g n
+                  return true
+          put $ extEnv x y (just (λ x -> x)) (just $ functionApp e e₁ {true}) h g n
+          return true
+  put $ extEnv x y (just $ λ x -> x) (just $ functionApp e e₁ {true}) h g n
+  return true
 findPartInExpr (implicit x) start end = do
   true <- findPartInExpr x start end
     where false -> return false
@@ -122,6 +151,21 @@ findPartInExpr (underscore {p} {c1} {c2}) start end with isInside p start end
   put $ extEnv x y (just(λ a -> a)) (just $ underscore {p} {c1} {c2}) h g n
   return true
 ... | false = return false
+findPartInExpr (namedArgument (typeSignature funcName funcType) {b}) start end
+  with isInIdent funcName start end
+-- can't extract just the name of a variable
+... | true =  do
+            extEnv x y f expr h g n <- get
+            put $ extEnv x y (just $ λ x -> x)
+              (just $ namedArgument (typeSignature funcName funcType)  {b}) h g n
+            return true
+... | false = do
+    true <- findPartInExpr funcType start end
+      where false -> return false
+    extEnv x y (just f) expr h g n  <- get
+      where _ -> fail "No function in state"
+    put $ extEnv x y (just $ λ x -> namedArgument (typeSignature funcName $ f x) {b}) expr h g n
+    return true
 
 sameNameAndStatus : Identifier -> Identifier -> Bool
 sameNameAndStatus (identifier name isInRange scope declaration {inScope1}) (identifier name₁ isInRange₁ scope₁ declaration₁ {inScope2}) = (name == name₁) ∧ (not $ inScope1 xor inScope2)
@@ -144,24 +188,22 @@ mapState f (x ∷ list) = do
   xs <- mapState f list
   return (x1 ∷ xs)
 
+countHolesInSignature : TypeSignature -> ExtractionState ⊤
+
 countHolesInExpr : Expr -> ExtractionState ⊤
 countHolesInExpr hole = countHole
 countHolesInExpr (functionApp e e₁) = do
   countHolesInExpr e
   countHolesInExpr e₁
+countHolesInExpr (namedArgument arg) = countHolesInSignature arg
 countHolesInExpr _ = return tt
 
-countHolesInSignature : TypeSignature -> ExtractionState ⊤
-countHolesInType : Type -> ExtractionState ⊤
-countHolesInType (type expression) = countHolesInExpr expression
-countHolesInType (namedArgument arg) = countHolesInSignature arg
-countHolesInType (functionType t t₁) = do
-  countHolesInType t
-  countHolesInType t₁
+
+
 
 
 countHolesInSignature (typeSignature funcName funcType) =
-  countHolesInType funcType
+  countHolesInExpr funcType
 
 countHolesInTree : ParseTree -> ExtractionState ⊤
 countHolesInTree (signature signature₁ range₁) = countHolesInSignature signature₁
@@ -169,7 +211,7 @@ countHolesInTree (functionDefinition definitionOf params body range₁) = countH
 countHolesInTree (dataStructure dataName parameters indexInfo constructors range₁) = do
   mapState countHolesInSignature parameters
   mapState countHolesInSignature constructors
-  countHolesInType indexInfo
+  countHolesInExpr indexInfo
 countHolesInTree _ = return tt
 
 findPartToExtract : List ParseTree -> ℕ -> ℕ -> ExtractionState ⊤
@@ -195,23 +237,23 @@ findPartToExtract (p ∷ ps) start end = do
     put $ extEnv (b ∷ʳ p) a func exp h g n
     findPartToExtract ps start end
 
-makeTypeFromTypes : List Type -> ExtractionState Type
+makeTypeFromTypes : List Expr -> ExtractionState Expr
 makeTypeFromTypes [] = fail "Can't make type from nothing"
 makeTypeFromTypes (x ∷ []) = return x
 makeTypeFromTypes (x ∷ xs) = do
     y <- makeTypeFromTypes xs
-    return $ functionType x y
+    return $ functionApp x y {true}
 
 makeExprFromExprs : List Expr -> ExtractionState Expr
 makeExprFromExprs [] = fail "Can't make expr from nothing"
 makeExprFromExprs (x ∷ []) = return x
 makeExprFromExprs (x ∷ l) = do
   y <- makeExprFromExprs l
-  return $ functionApp y x
+  return $ functionApp y x {false}
 
 -- List of type signatures is environment. Contains all variables,
 -- including not-in-scope. Return list is the new function's environment.
-filterEnvironment : Type -> List TypeSignature -> (extractedExp : Expr) -> ExtractionState (List TypeSignature)
+filterEnvironment : Expr -> List TypeSignature -> (extractedExp : Expr) -> ExtractionState (List TypeSignature)
 filterEnvironment resultType [] varsUsed = return []
 filterEnvironment resultType (typeSignature funcName funcType ∷ environment) extractedExpr = do
   filteredEnv <- filterEnvironment resultType environment extractedExpr
@@ -223,23 +265,25 @@ filterEnvironment resultType (typeSignature funcName funcType ∷ environment) e
    then return $ (typeSignature funcName funcType) ∷ filteredEnv
    else return filteredEnv
  where
-  findInType : Identifier -> Type -> ExtractionState Bool
-  findInType id (type expression) = return $ isIdInExpr id expression
+  findInType : Identifier -> Expr -> ExtractionState Bool
+
   findInType id (namedArgument (typeSignature funcName funcType)) = findInType id funcType
-  findInType id (functionType t t₁) = do
+  findInType id (functionApp t t₁ {true}) = do
     one <- findInType id t
     two <- findInType id t₁
     return $ one ∨ two
+  findInType id expression = return $ isIdInExpr id expression
 
 bringIdInScope : Identifier -> Identifier
 bringIdInScope (identifier name isInRange scope declaration {inScope} {a} {b}) = identifier name isInRange scope declaration {true} {a}{b}
 
 containsIdInSign : TypeSignature -> Identifier -> Bool
 
-containsInType : Type -> Identifier -> Bool
-containsInType (type expression) i = isIdInExpr i expression
+containsInType : Expr -> Identifier -> Bool
+
 containsInType (namedArgument arg) i = containsIdInSign arg i
-containsInType (functionType t t₁) i = containsInType t i ∨ containsInType t₁ i
+containsInType (functionApp t t₁ {true}) i = containsInType t i ∨ containsInType t₁ i
+containsInType expression i = isIdInExpr i expression
 
 containsIdInSign (typeSignature name funcType) id = sameNameAndStatus name id ∨ containsInType funcType id
 
@@ -248,44 +292,45 @@ isInScope (identifier _ _ _ _ {isInScope}) = isInScope
 
 bringExprInScope : Expr -> Expr
 bringExprInScope (ident id) = ident $ bringIdInScope id
-bringExprInScope (functionApp e e₁) = functionApp (bringExprInScope e) $ bringExprInScope e₁
+bringExprInScope (functionApp e e₁ {b}) = functionApp (bringExprInScope e) (bringExprInScope e₁) {b}
 bringExprInScope (implicit e) = implicit $ bringExprInScope e
 bringExprInScope x = x
 
-bringInScope : Type -> Type
+bringInScope : Expr -> Expr
 bringSignatureInScope : TypeSignature -> TypeSignature
 bringSignatureInScope (typeSignature funcName funcType) =
   typeSignature (bringIdInScope funcName) $ bringInScope funcType
 
 
-bringInScope (type expression) = type $ bringExprInScope expression
-bringInScope (namedArgument arg {b}) = namedArgument (bringSignatureInScope arg) {b}
-bringInScope (functionType t t₁) = functionType (bringInScope t) $ bringInScope t₁
 
+bringInScope (namedArgument arg {b}) = namedArgument (bringSignatureInScope arg) {b}
+bringInScope (functionApp t t₁ {true}) = functionApp (bringInScope t) (bringInScope t₁) {true}
+bringInScope expression = bringExprInScope expression
 renameNotInScopeExpr : Identifier -> Identifier -> Expr -> Expr
 renameNotInScopeExpr (identifier name₁ isInRange₁ scope₁ declaration₁) to (ident (identifier name isInRange scope declaration {false} {b} {a})) with name == name₁
 renameNotInScopeExpr (identifier name₁ isInRange₁ scope₁ declaration₁) (identifier name₂ isInRange₂ scope₂ declaration₂) (ident (identifier name isInRange scope declaration {false} {b} {a})) | true = ident $ identifier name₂ isInRange₂ scope₂ declaration₂ {false}{b} {a}
 ... | false = ident $ identifier name isInRange scope declaration {false} {b} {a}
-renameNotInScopeExpr from to (functionApp e e₁) =
-  functionApp (renameNotInScopeExpr from to e) $ renameNotInScopeExpr from to e₁
+renameNotInScopeExpr from to (functionApp e e₁ {b}) =
+  functionApp (renameNotInScopeExpr from to e) (renameNotInScopeExpr from to e₁) {b}
 renameNotInScopeExpr from to (implicit e) = implicit $ renameNotInScopeExpr from to e
 renameNotInScopeExpr _ _ x = x
 
-renameNotInScopeOfName : Identifier -> Identifier -> Type -> Type
+renameNotInScopeOfName : Identifier -> Identifier -> Expr -> Expr
 
 renameNotInScopeSign : Identifier -> Identifier -> TypeSignature -> TypeSignature
 renameNotInScopeSign from to (typeSignature funcName funcType) =
   typeSignature funcName $ renameNotInScopeOfName from to funcType
 
 
-renameNotInScopeOfName from to (type expression) = type $ renameNotInScopeExpr from to expression
+
 renameNotInScopeOfName from to (namedArgument arg {b}) = namedArgument  (renameNotInScopeSign from to arg) {b}
-renameNotInScopeOfName from to (functionType signs signs₁) =
-  functionType (renameNotInScopeOfName from to signs) $ renameNotInScopeOfName from to signs₁
+renameNotInScopeOfName from to (functionApp signs signs₁ {true}) =
+  functionApp (renameNotInScopeOfName from to signs) (renameNotInScopeOfName from to signs₁) {true}
+renameNotInScopeOfName from to expression = renameNotInScopeExpr from to expression
 
 -- returns list of types, which are explicit or implicit named arguments
 -- and a list of expressions which is the left-hand side of the new function, i.e. idents.
-signatureToType : Type -> List TypeSignature -> ExtractionState (List Type × List Expr)
+signatureToType : Expr -> List TypeSignature -> ExtractionState (List Expr × List Expr)
 signatureToType result [] = return $ (result ∷ []) , []
 signatureToType result (typeSignature funcName funcType ∷ laterSigns) = do
   let inScopeType = bringInScope funcType

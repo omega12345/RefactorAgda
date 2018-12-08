@@ -6,34 +6,27 @@ open import Data.Sum
 open import Data.List hiding (lookup)
 open import AgdaHelperFunctions
 
+matchUpSignature : TypeSignature -> ScopeState TypeSignature
+
 matchUpExpr : Expr -> ScopeState Expr
 matchUpExpr (ident identifier₁) = do
   x <- access identifier₁
   return $ ident x
-matchUpExpr (functionApp x x₁) = do
+matchUpExpr (functionApp x x₁ {b}) = do
   r1 <- matchUpExpr x
   r2 <- matchUpExpr x₁
-  return $ functionApp r1 r2
-matchUpExpr x =  return x
-
-matchUpSignature : TypeSignature -> ScopeState TypeSignature
-
-matchUpType : Type -> ScopeState Type
-matchUpType (type expression) = do
-  x <- matchUpExpr expression
-  return $ type x
-matchUpType (namedArgument arg {b}) = do
+  return $ functionApp r1 r2 {b}
+matchUpExpr (namedArgument arg {b}) = do
   x <- matchUpSignature arg
   return $ namedArgument x {b}
-matchUpType (functionType t t₁) =  do
-  result1 <- matchUpType t
-  result2 <- (matchUpType t₁)
-  return $ functionType result1 result2
+matchUpExpr x =  return x
+
+
 
 
 matchUpSignature (typeSignature funcName funcType) = do
   newName <- access funcName
-  newType <- matchUpType funcType
+  newType <- matchUpExpr funcType
   return $ typeSignature newName newType
 
 matchUpPragma : Pragma -> ScopeState Pragma
@@ -54,7 +47,7 @@ matchUpTree (functionDefinition definitionOf params body range₁) = do
 matchUpTree (dataStructure dataName parameters indexInfo constructors range₁ {comments}) = do
   newName <- access dataName
   newParams <- mapState matchUpSignature parameters
-  newIndex <- matchUpType indexInfo
+  newIndex <- matchUpExpr indexInfo
   newCons <- mapState matchUpSignature constructors
   return $ dataStructure newName newParams newIndex newCons range₁ {comments}
 matchUpTree (pragma pragma₁ range₁) = do

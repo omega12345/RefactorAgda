@@ -12,7 +12,7 @@ data ParseTree = Signature { signature :: TypeSignature
                                     }
               |  DataStructure { dataName :: Identifier
                                , parameters :: [TypeSignature]
-                               , indexInfo :: Type
+                               , indexInfo :: Expr
                                , constructors :: [TypeSignature]
                                , range :: Range
                                , comments :: [[Comment]] -- implicit
@@ -31,7 +31,7 @@ data ParseTree = Signature { signature :: TypeSignature
 
 
 data TypeSignature = TypeSignature { funcName :: Identifier
-                                   , funcType :: Type
+                                   , funcType :: Expr
                                    } deriving (Show, Eq)
 
 data Expr = NumLit {value :: Integer -- implicit
@@ -46,23 +46,19 @@ data Expr = NumLit {value :: Integer -- implicit
                   , commentsBef :: [Comment] -- implicit
                   , commentsAf :: [Comment] -- implicit
                   }
-           | FunctionApp { function :: Expr
-                         , argument :: Expr
+           | FunctionApp { firstPart :: Expr
+                         , secondPart :: Expr
+                         , isType :: Bool -- implicit
                          }
            | Implicit {expr :: Expr}
            | Underscore {position :: Range -- implicit
                         , commentsBef :: [Comment] -- implicit
                         , commentsAf :: [Comment] -- implicit
                         }
+           | NamedArgument { arg :: TypeSignature
+                           , explicit :: Bool -- implicit
+                           }
            deriving (Show, Eq)
-
-data Type = Type { expression :: Expr }
-            | NamedArgument { arg :: TypeSignature
-                            , explicit :: Bool -- implicit
-                            }
-            | FunctionType { input :: Type
-                           , output :: Type
-                           } deriving (Show, Eq)
 
 data Range = Range { lastUnaffected :: Integer
                    , lastAffected :: Integer

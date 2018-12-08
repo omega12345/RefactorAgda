@@ -13,6 +13,7 @@ open import Data.String
 open import Data.Bool
 open import AgdaHelperFunctions
 
+scopeSignature : TypeSignature -> ScopeType -> ScopeState TypeSignature
 
 scopeExpr : Expr -> ScopeState Expr
 scopeExpr (ident identifier₁) = do
@@ -21,31 +22,17 @@ scopeExpr (ident identifier₁) = do
    where _ ->  do x <- addIdentifier identifier₁
                   return $ ident x
   return $ ident r
-scopeExpr (functionApp e e₁) = do
+scopeExpr (functionApp e e₁ {b}) = do
   r1 <- scopeExpr e
   r2 <- scopeExpr e₁
-  return $ functionApp r1 r2
-scopeExpr x = return x
-
-scopeSignature : TypeSignature -> ScopeType -> ScopeState TypeSignature
-
-scopeType : Type -> ScopeState Type
--- simple types do not add either scopes or variables
-scopeType (type expression) = do
-  x <- scopeExpr expression
-  return $ type x
--- implicit and explicit arguments open a new scope, which is done by
--- scopeSignature
-scopeType (namedArgument arg {b}) = do
+  return $ functionApp r1 r2 {b}
+scopeExpr (namedArgument arg {b}) = do
   x <- scopeSignature arg addVariableToType
   return $ namedArgument x {b}
-scopeType (functionType t t₁) =  do
-  result1 <- scopeType t
-  result2 <- scopeType t₁
-  return $ functionType result1 result2
+scopeExpr x = return x
 
 scopeSignature (typeSignature funcName funcType) scopeT = do
-    newType <- saveAndReturnToScope $ scopeType funcType
+    newType <- saveAndReturnToScope $ scopeExpr funcType
     addScope scopeT
     newId <- addIdentifier funcName
     return $ typeSignature newId newType
@@ -74,7 +61,7 @@ scopeParseTree
     newDataName <- addIdentifier dataName
     ( newParams , newIndex) , newCons <- saveAndReturnToScope $ do
               newParams <- mapState (λ x -> scopeSignature x addVariableToType) parameters
-              newIndex <- scopeType indexInfo
+              newIndex <- scopeExpr indexInfo
               newCons <- mapState (λ x -> scopeSignature x addFuncToModule) constructors
               return ((newParams , newIndex) , newCons)
     r <- mapState addContentReferenceToModuleTop newCons

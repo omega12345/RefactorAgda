@@ -22,6 +22,7 @@ open import Data.Unit
 open import AgdaHelperFunctions
 open import Data.Nat.Show
 import IO.Primitive as Prim
+open import ParseTreeOperations
 
 data ScopeType : Set where
   funcDef : ScopeType
@@ -281,10 +282,6 @@ currentScopeTypeIsFuncDef = do
   return true
 
 
-sameId : Identifier -> Identifier -> Bool
-sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) with declaration Data.Nat.≟ declaration₁
-sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) | yes p = true
-sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁) | no ¬p = false
 
 isNameInUse : String -> ScopeState Bool
 isNameInUse s = do

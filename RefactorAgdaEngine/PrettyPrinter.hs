@@ -49,7 +49,7 @@ printParseTree DataStructure {dataName, parameters, indexInfo, constructors, com
   dealWithLongLine
       ((textStrict "data": printIdentifier dataName) ++
       map (parens . hang indentationWidth . printSignature) parameters ++
-      [textStrict ":", dealWithLongLine $ printType indexInfo False, textStrict "where"] ++ map printComment (concat comments))
+      [textStrict ":", printExpr indexInfo, textStrict "where"] ++ map printComment (concat comments))
        P.<$>
   vsep ( map (indent indentationWidth . hang indentationWidth . printSignature) constructors)
 printParseTree Pragma {pragma} = printPragma pragma
@@ -64,7 +64,7 @@ printParseTree ModuleName { moduleName} =
 --TODO: The rest of the comments does not get printed because right now it is guaranteed to be 0.
 printSignature :: TypeSignature -> Doc
 printSignature TypeSignature {funcName, funcType} =
-  sep $ sep (printIdentifier funcName ++  [textStrict":"]) : printType funcType False
+  sep $ sep (printIdentifier funcName ++  [textStrict":"]) : [printExpr funcType]
 
 printExpr :: Expr -> Doc
 printExpr expr =
@@ -72,26 +72,19 @@ printExpr expr =
     NumLit {value} -> integer value
     Ident {identifier} -> sep $ printIdentifier identifier
     Hole {textInside} -> enclose (textStrict "{!") (textStrict "!}") $ textStrict textInside
-    FunctionApp {function, argument} -> printExpr function </> bracketing argument (printExpr argument)
-  where bracketing (FunctionApp _ _) = parens
+    NamedArgument {arg, explicit} ->
+      case explicit of
+        True -> parens $ printSignature arg
+        False -> braces $ printSignature arg
+    FunctionApp firstPart secondPart False -> printExpr firstPart </> bracketing secondPart (printExpr secondPart)
+    FunctionApp input output True ->
+        parens temp
+        where temp = printExpr input </> arrow </> printExpr output
+  where bracketing (FunctionApp _ _ _) = parens
         bracketing _ = id
 
 printIdentifier :: Identifier -> [Doc]
 printIdentifier Identifier{name, commentsBefore, commentsAfter} = (map printComment commentsBefore) ++ textStrict name : (map printComment commentsAfter)
-
-printType :: Type -> Bool -> [Doc]
-printType t wantBrackets =
-  case t of
-    Type {expression} -> [printExpr expression]
-    NamedArgument { arg , explicit} ->
-      case explicit of
-        True -> [parens $ printSignature arg]
-        False -> [braces $ printSignature arg]
-    FunctionType { input, output } ->
-      if wantBrackets
-      then [parens $ sep temp]
-      else temp
-      where temp = (sep (printType input True) </> arrow) : printType output False
 
 printPragma :: Pragma -> Doc
 printPragma Builtin {concept, definition}=
