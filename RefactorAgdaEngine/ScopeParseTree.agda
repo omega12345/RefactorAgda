@@ -22,13 +22,13 @@ scopeExpr (ident identifier₁) = do
    where _ ->  do x <- addIdentifier identifier₁
                   return $ ident x
   return $ ident r
-scopeExpr (functionApp e e₁ {b}) = do
+scopeExpr (functionApp e e₁ {b} ) = do
   r1 <- scopeExpr e
   r2 <- scopeExpr e₁
   return $ functionApp r1 r2 {b}
-scopeExpr (namedArgument arg {b}) = do
+scopeExpr (namedArgument arg {b} {bef} {aft}) = do
   x <- scopeSignature arg addVariableToType
-  return $ namedArgument x {b}
+  return $ namedArgument x {b}{bef}{aft}
 scopeExpr x = return x
 
 scopeSignature (typeSignature funcName funcType) scopeT = do

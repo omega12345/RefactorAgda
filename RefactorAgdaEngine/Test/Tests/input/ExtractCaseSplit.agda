@@ -1,7 +1,11 @@
 module ExtractCaseSplit where
 
 open import Data.Maybe
-open import Data.Bool
+open import Agda.Builtin.Bool
+
+not : Bool -> Bool
+not true = false
+not false = true
 
 func : Maybe Bool -> Bool
 

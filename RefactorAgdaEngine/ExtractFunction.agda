@@ -92,7 +92,7 @@ findPartInExpr (hole {t} {p} {c} {c2}) start end
   put $ extEnv x y (just(λ a -> a)) (just $ hole {t} {p} {c} {c2}) h g n
   return true
 ... | false = return false
-findPartInExpr (functionApp e e₁ {false}) start end = do
+findPartInExpr (functionApp e e₁ {false} ) start end = do
     true <- findPartInExpr e₁ start end
       where false -> do
                   true <- findPartInExpr e start end
@@ -114,16 +114,16 @@ findPartInExpr (functionApp e e₁ {false}) start end = do
     -- Therefore, we need to extract entire e and e₁ regardless of
     -- how far into it the selection extends.
     --extEnv x y f expr h g n <- get
-    put $ extEnv x y (just (λ x -> x)) (just $ functionApp e e₁ {false}) h g n
+    put $ extEnv x y (just (λ x -> x)) (just $ functionApp e e₁ {false} ) h g n
     return true
-findPartInExpr (functionApp e e₁ {true}) start end = do
+findPartInExpr (functionApp e e₁ {true} ) start end = do
   true <- findPartInExpr e start end
     where false -> do
            true <- findPartInExpr e₁ start end
             where false -> return false
            extEnv x y (just f) expr h g n <- get
             where _ -> fail "Got no function despite extraction"
-           put $ extEnv x y (just(λ x -> functionApp e (f x) {true})) expr h g n
+           put $ extEnv x y (just(λ x -> functionApp e (f x) {true} )) expr h g n
            return true
   extEnv x y (just f) expr h g n <- get
    where _ -> fail "Got no function despite extraction"
@@ -151,20 +151,20 @@ findPartInExpr (underscore {p} {c1} {c2}) start end with isInside p start end
   put $ extEnv x y (just(λ a -> a)) (just $ underscore {p} {c1} {c2}) h g n
   return true
 ... | false = return false
-findPartInExpr (namedArgument (typeSignature funcName funcType) {b}) start end
+findPartInExpr (namedArgument (typeSignature funcName funcType) {b} {bef} {aft}) start end
   with isInIdent funcName start end
 -- can't extract just the name of a variable
 ... | true =  do
             extEnv x y f expr h g n <- get
             put $ extEnv x y (just $ λ x -> x)
-              (just $ namedArgument (typeSignature funcName funcType)  {b}) h g n
+              (just $ namedArgument (typeSignature funcName funcType)  {b} {bef} {aft}) h g n
             return true
 ... | false = do
     true <- findPartInExpr funcType start end
       where false -> return false
     extEnv x y (just f) expr h g n  <- get
       where _ -> fail "No function in state"
-    put $ extEnv x y (just $ λ x -> namedArgument (typeSignature funcName $ f x) {b}) expr h g n
+    put $ extEnv x y (just $ λ x -> namedArgument (typeSignature funcName $ f x) {b} {bef} {aft}) expr h g n
     return true
 
 sameNameAndStatus : Identifier -> Identifier -> Bool
@@ -292,7 +292,7 @@ isInScope (identifier _ _ _ _ {isInScope}) = isInScope
 
 bringExprInScope : Expr -> Expr
 bringExprInScope (ident id) = ident $ bringIdInScope id
-bringExprInScope (functionApp e e₁ {b}) = functionApp (bringExprInScope e) (bringExprInScope e₁) {b}
+bringExprInScope (functionApp e e₁ {b} ) = functionApp (bringExprInScope e) (bringExprInScope e₁) {b}
 bringExprInScope (implicit e) = implicit $ bringExprInScope e
 bringExprInScope x = x
 
@@ -303,14 +303,14 @@ bringSignatureInScope (typeSignature funcName funcType) =
 
 
 
-bringInScope (namedArgument arg {b}) = namedArgument (bringSignatureInScope arg) {b}
-bringInScope (functionApp t t₁ {true}) = functionApp (bringInScope t) (bringInScope t₁) {true}
+bringInScope (namedArgument arg {b} {bef} {aft}) = namedArgument (bringSignatureInScope arg) {b} {bef} {aft}
+bringInScope (functionApp t t₁ {true} ) = functionApp (bringInScope t) (bringInScope t₁) {true}
 bringInScope expression = bringExprInScope expression
 renameNotInScopeExpr : Identifier -> Identifier -> Expr -> Expr
 renameNotInScopeExpr (identifier name₁ isInRange₁ scope₁ declaration₁) to (ident (identifier name isInRange scope declaration {false} {b} {a})) with name == name₁
 renameNotInScopeExpr (identifier name₁ isInRange₁ scope₁ declaration₁) (identifier name₂ isInRange₂ scope₂ declaration₂) (ident (identifier name isInRange scope declaration {false} {b} {a})) | true = ident $ identifier name₂ isInRange₂ scope₂ declaration₂ {false}{b} {a}
 ... | false = ident $ identifier name isInRange scope declaration {false} {b} {a}
-renameNotInScopeExpr from to (functionApp e e₁ {b}) =
+renameNotInScopeExpr from to (functionApp e e₁ {b} ) =
   functionApp (renameNotInScopeExpr from to e) (renameNotInScopeExpr from to e₁) {b}
 renameNotInScopeExpr from to (implicit e) = implicit $ renameNotInScopeExpr from to e
 renameNotInScopeExpr _ _ x = x
@@ -323,8 +323,8 @@ renameNotInScopeSign from to (typeSignature funcName funcType) =
 
 
 
-renameNotInScopeOfName from to (namedArgument arg {b}) = namedArgument  (renameNotInScopeSign from to arg) {b}
-renameNotInScopeOfName from to (functionApp signs signs₁ {true}) =
+renameNotInScopeOfName from to (namedArgument arg {b} {bef} {aft}) = namedArgument  (renameNotInScopeSign from to arg) {b} {bef} {aft}
+renameNotInScopeOfName from to (functionApp signs signs₁ {true} ) =
   functionApp (renameNotInScopeOfName from to signs) (renameNotInScopeOfName from to signs₁) {true}
 renameNotInScopeOfName from to expression = renameNotInScopeExpr from to expression
 
@@ -337,17 +337,17 @@ signatureToType result (typeSignature funcName funcType ∷ laterSigns) = do
   (restOfSigns , exprs) <- signatureToType result laterSigns
   false <- return $ isInScope funcName
     where true -> do -- in this case, we plainly don't want to rename anything
-                    let newSign = namedArgument (typeSignature funcName funcType) {true}
+                    let newSign = namedArgument (typeSignature funcName funcType) {true} {[]}{[]}
                     return $ newSign ∷  restOfSigns , ident funcName ∷ exprs
   -- Do we need to rename the current variable?
   true <- return $ or $ Data.List.map (λ x -> containsIdInSign x $ bringIdInScope funcName) laterSigns
     where false -> do
-              let newSign = namedArgument (typeSignature funcName funcType) {false}
+              let newSign = namedArgument (typeSignature funcName funcType) {false} {[]}{[]}
               return $ newSign ∷  restOfSigns , exprs
   liftScopeState $ liftIO $ output "Need to rename a variable"
   newName <- liftScopeState getUniqueIdentifier
   let renamedSigns = Data.List.map (renameNotInScopeOfName funcName newName) restOfSigns
-  return $ namedArgument (typeSignature newName inScopeType) {false} ∷ renamedSigns , exprs
+  return $ namedArgument (typeSignature newName inScopeType) {false} {[]}{[]} ∷ renamedSigns , exprs
 
 placeInRightPlace : Identifier -> (placeOverTypeSignature : Bool) -> ParseTree -> ParseTree -> List ParseTree -> List ParseTree
 placeInRightPlace oldFunctionName _ newsign newdef [] = newsign ∷ newdef ∷ []

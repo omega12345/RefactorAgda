@@ -1,6 +1,6 @@
 -- a few random examples
 module Test where
-import Data.Bool
+import Agda.Builtin.Bool
 
 data Nat : Set where zero : Nat -- Comment which gets eaten
                      suc  : Nat -> Nat --Comment which is preserved

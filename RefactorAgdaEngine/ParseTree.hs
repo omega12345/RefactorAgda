@@ -1,76 +1,78 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module ParseTree where
-import Data.Text
+import           Data.Text
 data ParseTree = Signature { signature :: TypeSignature
-                           , range :: Range
+                           , range     :: Range
                            }
               |  FunctionDefinition { definitionOf :: Identifier
-                                    , params :: [Expr]
-                                    , body :: Expr
-                                    , range :: Range
+                                    , params       :: [Expr]
+                                    , body         :: Expr
+                                    , range        :: Range
                                     }
-              |  DataStructure { dataName :: Identifier
-                               , parameters :: [TypeSignature]
-                               , indexInfo :: Expr
+              |  DataStructure { dataName     :: Identifier
+                               , parameters   :: [TypeSignature]
+                               , indexInfo    :: Expr
                                , constructors :: [TypeSignature]
-                               , range :: Range
-                               , comments :: [[Comment]] -- implicit
+                               , range        :: Range
+                               , comments     :: [[Comment]] -- implicit
                                }
               |  Pragma { pragma :: Pragma
-                        , range :: Range
+                        , range  :: Range
                         }
-              |  OpenImport { opened :: Bool
-                            , imported :: Bool
+              |  OpenImport { opened     :: Bool
+                            , imported   :: Bool
                             , moduleName :: Identifier
-                            , range :: Range
-                            , comments :: [[Comment]] -- implicit
+                            , range      :: Range
+                            , comments   :: [[Comment]] -- implicit
                             }
               |  ModuleName { moduleName :: Identifier
-                            , range :: Range } deriving (Show, Eq)
+                            , range      :: Range } deriving (Show, Eq)
 
 
 data TypeSignature = TypeSignature { funcName :: Identifier
                                    , funcType :: Expr
                                    } deriving (Show, Eq)
 
-data Expr = NumLit {value :: Integer -- implicit
-                   , position :: Range -- implicit
+data Expr = NumLit {value        :: Integer -- implicit
+                   , position    :: Range -- implicit
                    , commentsBef :: [Comment] -- implicit
-                   , commentsAf :: [Comment] -- implicit
+                   , commentsAf  :: [Comment] -- implicit
                    }
            | Ident {identifier :: Identifier
                     }
-           | Hole {textInside :: Text -- implicit
-                  , position :: Range -- implicit
+           | Hole {textInside   :: Text -- implicit
+                  , position    :: Range -- implicit
                   , commentsBef :: [Comment] -- implicit
-                  , commentsAf :: [Comment] -- implicit
+                  , commentsAf  :: [Comment] -- implicit
                   }
-           | FunctionApp { firstPart :: Expr
+           | FunctionApp { firstPart  :: Expr
                          , secondPart :: Expr
-                         , isType :: Bool -- implicit
+                         , isType     :: Bool -- implicit
                          }
            | Implicit {expr :: Expr}
-           | Underscore {position :: Range -- implicit
+           | Underscore {position     :: Range -- implicit
                         , commentsBef :: [Comment] -- implicit
-                        , commentsAf :: [Comment] -- implicit
+                        , commentsAf  :: [Comment] -- implicit
                         }
-           | NamedArgument { arg :: TypeSignature
-                           , explicit :: Bool -- implicit
+           | NamedArgument { arg         :: TypeSignature
+                           , explicit    :: Bool -- implicit
+                           , commentsBef :: [Comment] -- implicit
+                           , commentsAf  :: [Comment] -- implicit
                            }
            deriving (Show, Eq)
 
 data Range = Range { lastUnaffected :: Integer
-                   , lastAffected :: Integer
+                   , lastAffected   :: Integer
                    } deriving (Show, Eq)
 
-data Identifier = Identifier { name :: Text
-                             , isInRange :: Integer -> RangePosition
-                             , scope :: Integer
-                             , declaration :: Integer
-                             , inScope :: Bool -- implicit
+data Identifier = Identifier { name           :: Text
+                             , isInRange      :: Integer -> RangePosition
+                             , scope          :: Integer
+                             , declaration    :: Integer
+                             , inScope        :: Bool -- implicit
                              , commentsBefore :: [Comment] -- implicit
-                             , commentsAfter :: [Comment] -- implicit
+                             , commentsAfter  :: [Comment] -- implicit
                              }
 
 data RangePosition = Before {} | Inside {} | After {}
@@ -79,15 +81,16 @@ instance Eq Identifier where
   (Identifier x _ _ _ _ _ _) == (Identifier y _ _ _ _ _ _) = x == y
 
 instance Show Identifier where
-  show (Identifier x _ y z a b c) = show x
+  show (Identifier x _ y z a b c) = "Identifier " ++ show x ++ " " ++ show y
+    ++ " " ++ show z ++ " " ++ show a ++ " " ++ show b ++ " " ++ show c
 
-data Pragma = Builtin { concept :: Text
+data Pragma = Builtin { concept    :: Text
                       , definition :: Identifier
                       }
               | Option { opts :: [Text]
                        } deriving (Show, Eq)
 
-data Comment = Comment { content :: Text  -- implicit
-                       , codePos :: Range -- implicit
+data Comment = Comment { content     :: Text  -- implicit
+                       , codePos     :: Range -- implicit
                        , isMultiLine :: Bool -- implicit
                        } deriving (Show, Eq)

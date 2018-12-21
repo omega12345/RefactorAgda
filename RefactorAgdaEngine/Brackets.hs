@@ -1,13 +1,13 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- | Expression parser generator with bracket support.
 module Brackets where
 
-import Control.Monad.Combinators.Expr
-import Text.Megaparsec
-import Data.Text
-import Text.Megaparsec.Char as C
-import Text.Megaparsec.Char.Lexer
+import           Control.Monad.Combinators.Expr
+import           Data.Text
+import           Text.Megaparsec
+import           Text.Megaparsec.Char           as C
+import           Text.Megaparsec.Char.Lexer
 
 makeExprParserWithBrackets ::
   MonadParsec e s m => m b -> m c -> m d -> m a -> [[Operator m a]] -> m a
@@ -20,6 +20,7 @@ makeExprParserWithBrackets openingBracketParser closingBracketParser spaceConsum
           closingBracketParser
           return x
         calculator = makeExprParser (try termParser <|> bracketParser) operatorTable
+
 
 makeExprParserWithParens ::
   MonadParsec e Text m =>  m d -> m a -> [[Operator m a]] -> m a

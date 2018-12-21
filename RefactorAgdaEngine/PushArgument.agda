@@ -57,21 +57,43 @@ pushInstruction (typeSignature funcName funcType) argNo
           function f list = list
 
 --TODO: try to give this a better type
-updateSignature :  ℕ -> List⁺ Expr -> List⁺ Expr
-updateSignature zero (head₁ ∷ []) = head₁ ∷ []
+updateSignature :  ℕ -> List⁺ Expr -> ScopeState (List⁺ Expr)
+updateSignature argNo type
+  with toVec type
+... | c = do
+  newFin <- makeFin c argNo
+  newVec <- pushTypeIfApplicable c newFin
+  return $ Data.List.NonEmpty.fromVec newVec
+  where pushTypeIfApplicable : {n : ℕ} -> Vec Expr (suc n)  -> Fin n -> ScopeState (Vec Expr (suc n) )
+        pushTypeIfApplicable (namedArgument (typeSignature funcName funcType) {b} {bef1} {aft1} ∷ namedArgument (typeSignature funcName₁ funcType₁) {b2} {bef2} {aft2} ∷ v) zero =
+          if sameName funcName funcName₁
+           then fail "Can't switch two arguments of the same name, to avoid anything changing meaning"
+           else if funcName doesNotAppearInExp funcType₁
+                  then (return $ namedArgument (typeSignature funcName₁ funcType₁) {b2} {bef2} {aft2} ∷ namedArgument (typeSignature funcName funcType) {b} {bef1} {aft1} ∷ v)
+                  else fail "The next argument depends on the one being pushed"
+        pushTypeIfApplicable (namedArgument (typeSignature funcName funcType) {b} {bef} {aft} ∷ x ∷ v) zero = if funcName doesNotAppearInExp x
+                        then return $ x ∷ namedArgument (typeSignature funcName funcType) {b} {bef} {aft} ∷ v
+                        else fail "The next argument depends on the one being pushed"
+        pushTypeIfApplicable (x ∷ x₁ ∷ v) zero = return $ x₁ ∷ x ∷ v
+        pushTypeIfApplicable (x ∷ v) (suc f) = do
+          newRest <- pushTypeIfApplicable v f
+          return $ x ∷ newRest
+
+{-zero (head₁ ∷ []) = head₁ ∷ []
 updateSignature zero (head₁ ∷ x ∷ tail₁) = x ∷ head₁ ∷ tail₁
 updateSignature (suc n) (head₁ ∷ []) = head₁ ∷ []
-updateSignature (suc n) (head₁ ∷ x ∷ tail₁) = head₁ ∷⁺ updateSignature n (x ∷ tail₁)
+updateSignature (suc n) (head₁ ∷ x ∷ tail₁) = head₁ ∷⁺ updateSignature n (x ∷ tail₁)-}
 
 pushArgument : List ParseTree -> ℕ -> ℕ -> ScopeState (List ParseTree)
 pushArgument [] funcID whichArgument = fail "funcId not found in pushArgument"
 pushArgument (signature (typeSignature (identifier name isInRange scope declaration) funcType) range₁ ∷ code) funcID whichArgument with Data.Nat.compare declaration funcID
 pushArgument (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) funcType) range₁ ∷ code) .declaration whichArgument | equal .declaration = do
+    newType <- updateSignature whichArgument (typeToList funcType)
     instruction <- pushInstruction ((typeSignature (identifier name isInRange scope declaration {e}{b} {a})) funcType) whichArgument
     return $ applyToProgram instruction $
       signature (typeSignature
                   (identifier name isInRange scope declaration {e}{b} {a})
-                  (listToType $ updateSignature whichArgument $ typeToList funcType)) range₁ ∷ code
+                  (listToType newType)) range₁ ∷ code
 pushArgument (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) funcType) range₁ ∷ code) funcID whichArgument | _ = do
   newxs <- pushArgument code funcID whichArgument
   return $ (signature (typeSignature (identifier name isInRange scope declaration {e}{b} {a}) funcType) range₁) ∷ newxs

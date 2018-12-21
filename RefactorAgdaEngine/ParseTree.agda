@@ -46,7 +46,7 @@ data Expr where
   functionApp : (firstPart : Expr) -> (secondPart : Expr) -> {isType : Bool} -> Expr
   implicit : (expr : Expr) -> Expr
   underscore : {position : Range} -> {commentsBef : List Comment} -> {commentsAf : List Comment} -> Expr
-  namedArgument : (arg : TypeSignature) -> {explicit : Bool} -> Expr
+  namedArgument : (arg : TypeSignature) -> {explicit : Bool} -> {commentsBef : List Comment} -> {commentsAf : List Comment} -> Expr
 
 {-# COMPILE GHC Expr = data Expr
 ( NumLit

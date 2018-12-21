@@ -1,17 +1,17 @@
 {-# OPTIONS --allow-unsolved-metas #-}
 module ExtractFunction where
-open import Data.Nat
-open import Data.Bool
+open import Agda.Builtin.Nat
+open import Agda.Builtin.Bool
 
-plus : ℕ -> ℕ -> ℕ
+plus : Nat -> Nat -> Nat
 plus = {!   !}
 
-function1 : (x : ℕ) -> (y : ℕ) -> ℕ
+function1 : (x : Nat) -> (y : Nat) -> Nat
 function1 x y = plus x y
 
 
-pickTheFirst :  ℕ -> Bool -> ℕ
+pickTheFirst :  Nat -> Bool -> Nat
 pickTheFirst x y = x
 
-function2 :  ℕ -> Bool -> ℕ
+function2 :  Nat -> Bool -> Nat
 function2 x y = pickTheFirst x y

@@ -1,11 +1,11 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 module PrettyPrinter (prettyPrint, prettyPrintAll, printForAgda, printExprForAgda) where
-import Data.Text (Text, append, pack, intercalate)
-import qualified Data.Text as T
-import qualified Data.List as List
-import ParseTree
-import Text.PrettyPrint.Leijen.Text as P
+import qualified Data.List                    as List
+import           Data.Text                    (Text, append, intercalate, pack)
+import qualified Data.Text                    as T
+import           ParseTree
+import           Text.PrettyPrint.Leijen.Text as P
 
 prettyPrint :: [ParseTree] -> [ParseTree] -> Text -> Text
 prettyPrint newTree oldTree oldCode = foldr (replaceSection False) oldCode (List.zip oldTree newTree)
@@ -39,7 +39,7 @@ render p = displayTStrict $ renderPretty 1 maxLineLength $ printParseTree p
 -- fillSep: Concatenates input on one line as long as it will fit and then inserts a line break
 
 dealWithLongLine :: [Doc] -> Doc
-dealWithLongLine = hang indentationWidth . sep
+dealWithLongLine = hang indentationWidth . fillSep
 
 printParseTree :: ParseTree -> Doc
 printParseTree Signature {signature} = hang indentationWidth $ printSignature signature
@@ -64,38 +64,38 @@ printParseTree ModuleName { moduleName} =
 --TODO: The rest of the comments does not get printed because right now it is guaranteed to be 0.
 printSignature :: TypeSignature -> Doc
 printSignature TypeSignature {funcName, funcType} =
-  sep $ sep (printIdentifier funcName ++  [textStrict":"]) : [printExpr funcType]
+  fillSep $ fillSep (printIdentifier funcName ++  [textStrict":"]) : [printExpr funcType]
 
 printExpr :: Expr -> Doc
 printExpr expr =
   case expr of
     NumLit {value} -> integer value
-    Ident {identifier} -> sep $ printIdentifier identifier
+    Ident {identifier} -> fillSep $ printIdentifier identifier
     Hole {textInside} -> enclose (textStrict "{!") (textStrict "!}") $ textStrict textInside
     NamedArgument {arg, explicit} ->
       case explicit of
-        True -> parens $ printSignature arg
+        True  -> parens $ printSignature arg
         False -> braces $ printSignature arg
-    FunctionApp firstPart secondPart False -> printExpr firstPart </> bracketing secondPart (printExpr secondPart)
+    FunctionApp firstPart secondPart False->  printExpr firstPart </> bracketing secondPart (printExpr secondPart)
     FunctionApp input output True ->
         parens temp
         where temp = printExpr input </> arrow </> printExpr output
-  where bracketing (FunctionApp _ _ _) = parens
-        bracketing _ = id
+  where bracketing (FunctionApp _ _ _ ) = parens
+        bracketing _                    = id
 
 printIdentifier :: Identifier -> [Doc]
 printIdentifier Identifier{name, commentsBefore, commentsAfter} = (map printComment commentsBefore) ++ textStrict name : (map printComment commentsAfter)
 
 printPragma :: Pragma -> Doc
 printPragma Builtin {concept, definition}=
-  enclose (textStrict "{-# ") (textStrict " #-}") $ sep $
+  enclose (textStrict "{-# ") (textStrict " #-}") $ fillSep $
   [textStrict "BUILTIN", textStrict concept] ++ printIdentifier definition
 printPragma (Option opts) =
-  enclose (textStrict "{-# ") (textStrict " #-}") $ sep $
+  enclose (textStrict "{-# ") (textStrict " #-}") $ fillSep $
   [textStrict "OPTIONS"] ++ map textStrict opts
 
 printComment :: Comment -> Doc
 printComment Comment {content, codePos, isMultiLine} =
     case isMultiLine of
-      True -> enclose (textStrict"{-") (textStrict"-}") $ textStrict content
-      False -> textStrict $ append "--" content
+      True  -> enclose (textStrict"{-") (textStrict"-}") $ textStrict content
+      False -> (textStrict $ append "--" content) <> line

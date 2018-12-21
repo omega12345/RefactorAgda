@@ -1,9 +1,9 @@
-open import Data.Nat
+open import Agda.Builtin.Nat
 
 
-data Vec (A : Set) : ℕ -> Set where
+data Vec (A : Set) : Nat -> Set where
   [] : Vec A 0
-  cons : {n : ℕ} -> A -> Vec A n -> Vec A (suc n)
+  cons : {n : Nat} -> A -> Vec A n -> Vec A (suc n)
 
-empty : Vec ℕ 0
+empty : Vec Nat 0
 empty = []

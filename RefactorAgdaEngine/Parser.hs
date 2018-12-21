@@ -1,26 +1,26 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Parser (Parser.parse, Parser, functionType, typeSignature) where
-import Text.Megaparsec as M
-import Data.Void
-import Data.Functor.Identity
-import Text.Megaparsec.Char
-import Data.Char
-import ParseTree
-import Brackets
-import Control.Monad.Combinators.Expr
-import qualified Text.Megaparsec.Char.Lexer as L
-import Data.Text as T
-import Text.Read (readMaybe)
-import Data.List (intersperse)
+import           Brackets
+import           Control.Monad.Combinators.Expr
+import           Data.Char
+import           Data.Functor.Identity
+import           Data.List                      (intersperse)
+import           Data.Text                      as T
+import           Data.Void
+import           ParseTree
+import           Text.Megaparsec                as M
+import           Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer     as L
+import           Text.Read                      (readMaybe)
 
 -- Stuff which is important for the whole file
 -- Naming convention: the space consumer for line folds is always called sc.
 
 parse :: Text -> String -> [ParseTree]
 parse s fileName = case M.parse manyDefs fileName s of
-                    Left x -> error $ errorBundlePretty x
+                    Left x  -> error $ errorBundlePretty x
                     Right y -> y
 
 type Parser = ParsecT Void Text Identity
@@ -225,6 +225,7 @@ dataDefinition sc = do
   indexInfo <- functionType sc
   sc
   f <- allCommentsUntilNonComment
+  sc
   string "where"
   g <- allCommentsUntilNonComment
   return $ DataStructure
@@ -268,7 +269,8 @@ hole = questionMark <|> do
         (\x -> Hole {textInside = x , commentsBef = [] , commentsAf = []})
          textInside
       z <- getOffset
-      return $ c {position = makeRange a z}
+      af <- allCommentsUntilNonComment
+      return $ c {position = makeRange a z , commentsAf = af}
       where questionMark :: Parser Expr
             questionMark = do
               a <- getOffset
@@ -281,16 +283,28 @@ literal = do
   a <- getOffset
   x <- potentialNamePart
   z <- getOffset
+  af <- allCommentsUntilNonComment
   case (readMaybe $ unpack x) :: Maybe Integer of
     Nothing -> fail $ unpack x ++ "is not an int literal"
-    Just y -> return $ NumLit y (makeRange a z)  [] []
+    Just y  -> return $ NumLit y (makeRange a z)  [] af
 
+identExpr :: Parser Expr
+identExpr = do
+  x <- ident
+  af <- allCommentsUntilNonComment
+  return $ attachCommentsAfter af $ Ident x
+
+-- {Comment 1} f {comment2} x {comment3}
 functionApp :: Parser () -> Parser Expr
-functionApp sc = makeExprParserWithParens
+functionApp sc = do
+   bef <- allCommentsUntilNonComment
+
+   e <- makeExprParserWithParens
                  sc
-                 (try literal <|> try ( (\x -> Ident x) <$> ident) <|>
+                 (try literal <|> try identExpr <|>
                     try ( (\x -> Ident $ makeOutOfScope x) <$> (string "." >> ident)) <|> hole)
                  operatorTable
+   return $ attachCommentsBefore bef e
       where whitespaceAsOperator :: Parser Expr
             whitespaceAsOperator = do
                 sc
@@ -299,13 +313,16 @@ functionApp sc = makeExprParserWithParens
             operatorTable = [[InfixL $ (\ x y -> FunctionApp x y False) <$ try whitespaceAsOperator]]
             makeOutOfScope a = a {inScope = False}
 
--- Type parsing
+typeParser :: Parser () -> Parser Expr
+typeParser sc =
+    functionApp sc
+
 
 functionType :: Parser () -> Parser Expr
 functionType sc =
   makeExprParserWithParens
   sc
-  (try (typeParser sc) <|> try (implicitArgParser sc) <|> explicitArgParser sc)
+  (try (functionApp sc) <|> try (implicitArgParser sc) <|> explicitArgParser sc)
   arrowTable
   where arrowTable :: [[Operator Parser Expr]]
         arrowTable = [[InfixR $ (\ x y -> FunctionApp x y True) <$ try arrowParser]]
@@ -315,24 +332,23 @@ functionType sc =
           string "→" <|> string "->"
           sc
 
-typeParser :: Parser () -> Parser Expr
-typeParser sc =
-    functionApp sc
+
 
 implicitArgParser :: Parser () -> Parser Expr
-implicitArgParser = anyArgParser "{" "}" (\ x -> NamedArgument x False)
+implicitArgParser = anyArgParser "{" "}" False
 
 explicitArgParser :: Parser () -> Parser Expr
-explicitArgParser = anyArgParser "(" ")" (\ x -> NamedArgument x True)
+explicitArgParser = anyArgParser "(" ")" True
 
-anyArgParser :: Text -> Text -> (TypeSignature -> Expr) -> Parser () -> Parser Expr
-anyArgParser opening closing constructor sc = do
+anyArgParser :: Text -> Text -> Bool -> Parser () -> Parser Expr
+anyArgParser opening closing b sc = do
   string opening
   sc
   x <- typeSignature sc
   sc
   string closing
-  return $ constructor x
+  c <- allCommentsUntilNonComment
+  return $ NamedArgument x b [] c
 
 
 

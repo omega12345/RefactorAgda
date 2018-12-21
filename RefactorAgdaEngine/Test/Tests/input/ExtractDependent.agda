@@ -1,8 +1,8 @@
 {-# OPTIONS --allow-unsolved-metas #-}
 module ExtractDependent where
-open import Data.Nat
-open import Data.Bool
-open import Data.String
+open import Agda.Builtin.Nat
+open import Agda.Builtin.Bool
+open import Agda.Builtin.String
 
 apply : (A : Set) -> (B : A -> Set) ->
             ((x : A) -> B x) -> (a : A) -> B a
