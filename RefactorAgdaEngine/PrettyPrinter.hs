@@ -44,7 +44,7 @@ dealWithLongLine = hang indentationWidth . fillSep
 printParseTree :: ParseTree -> Doc
 printParseTree Signature {signature} = hang indentationWidth $ printSignature signature
 printParseTree FunctionDefinition {definitionOf, params, body} =
-  dealWithLongLine $ printIdentifier definitionOf ++ map (parens . printExpr) params ++ [textStrict "=", printExpr body]
+  dealWithLongLine $ printIdentifier definitionOf ++ map (\x -> bracketing x False $ printExpr x) params ++ [textStrict "=", printExpr body]
 printParseTree DataStructure {dataName, parameters, indexInfo, constructors, comments} =
   dealWithLongLine
       ((textStrict "data": printIdentifier dataName) ++
@@ -66,6 +66,10 @@ printSignature :: TypeSignature -> Doc
 printSignature TypeSignature {funcName, funcType} =
   fillSep $ fillSep (printIdentifier funcName ++  [textStrict":"]) : [printExpr funcType]
 
+bracketing :: Expr -> Bool -> (Doc -> Doc)
+bracketing FunctionApp {isType} b   = if isType == b then parens else id
+bracketing _                      b = id
+
 printExpr :: Expr -> Doc
 printExpr expr =
   case expr of
@@ -76,12 +80,11 @@ printExpr expr =
       case explicit of
         True  -> parens $ printSignature arg
         False -> braces $ printSignature arg
-    FunctionApp firstPart secondPart False->  printExpr firstPart </> bracketing secondPart (printExpr secondPart)
+    FunctionApp firstPart secondPart False->  printExpr firstPart </> bracketing secondPart False (printExpr secondPart)
     FunctionApp input output True ->
-        parens temp
-        where temp = printExpr input </> arrow </> printExpr output
-  where bracketing (FunctionApp _ _ _ ) = parens
-        bracketing _                    = id
+        (bracketing input True (printExpr input)) </> arrow </> printExpr output
+    Implicit e -> braces $ printExpr e
+    Underscore pos bef aft -> fillSep $ map printComment bef ++ textStrict "_" : map printComment aft
 
 printIdentifier :: Identifier -> [Doc]
 printIdentifier Identifier{name, commentsBefore, commentsAfter} = (map printComment commentsBefore) ++ textStrict name : (map printComment commentsAfter)

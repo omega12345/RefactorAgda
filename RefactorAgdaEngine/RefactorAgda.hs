@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-import Data.Text.IO as IO
-import System.Environment
-import Data.Text (pack, unpack, concat)
-import PrettyPrinter
-import MAlonzo.Code.Refactoring
-import Parser
+import           Data.Text                (concat, pack, unpack)
+import           Data.Text.IO             as IO
+import           MAlonzo.Code.Refactoring
+import           Parser
+import           PrettyPrinter
+import           System.Environment
 
 main :: IO ()
 main = do
@@ -29,6 +29,13 @@ main = do
                 case newContents of
                   Left x -> error $ "start of RefactorAgda output" ++ unpack x
                   Right y -> IO.putStrLn $ Data.Text.concat ["start of RefactorAgda output", prettyPrint y tree fileContents]
+           ["convert", offset] ->
+              do
+                let point = read offset :: Integer
+                newContents <- pushArgument tree point
+                case newContents of
+                  Left x -> error $ "start of RefactorAgda output" ++ unpack x
+                  Right y -> IO.putStrLn $ Data.Text.concat ["start of RefactorAgda output", prettyPrint y tree fileContents]
            ["extractFunction", startOffset, endOffset] ->
             do
               let start = read startOffset :: Integer
@@ -37,5 +44,12 @@ main = do
               case newContents of
                 Left x -> error $ "start of RefactorAgda output" ++ unpack x
                 Right y -> IO.putStrLn $ Data.Text.concat ["start of RefactorAgda output", prettyPrintAll y tree fileContents]
+           ["toggleExplicitness", offset] ->
+             do
+              let point = read offset :: Integer
+              newContents <- toggleExplicitness tree point
+              case newContents of
+                Left x -> error $ "start of RefactorAgda output" ++ unpack x
+                Right y -> IO.putStrLn $ Data.Text.concat ["start of RefactorAgda output", prettyPrint y tree fileContents]
            _ -> error $ "start of RefactorAgda output" ++ "Wrong number of arguments" ++ show rest
       _ -> error $ "start of RefactorAgda output" ++ "Not even a file name"

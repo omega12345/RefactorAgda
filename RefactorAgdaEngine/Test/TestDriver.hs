@@ -36,8 +36,11 @@ main = do
   functionExtraction <- generateTests functionExtractionTest
                                       functionExtractionTestData
                                       "function extraction tests"
+  conversion <- generateTests manualExplicitImplicitConversionTest
+                              manualExplicitImplicitConversionTestData
+                              "conversion between explicit and implicit tests"
   defaultMain $ testGroup "all tests" [tests, moreTests, passingRenameTests,
-    failingManualRenameTests, passingPushArgTests, failingPushArgTests, functionExtraction]
+    failingManualRenameTests, passingPushArgTests, failingPushArgTests, functionExtraction, conversion]
   --defaultMain $ testGetTypes
 
 inputDirectory :: FilePath
@@ -178,6 +181,18 @@ manualRenameTest a@(file, beforePoint, afterPoint, oldName, newName) =
                   Left x -> assertFailure (unpack x)
                   Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
 
+manualOnePointTest :: ([ParseTree] -> Integer -> IO (Either Text [ParseTree]))
+    -> (FilePath, Text, Text) -> TestTree
+manualOnePointTest f (file , before, after) =
+  localOption (mkTimeout 1000000) $ testCaseSteps file $ \step -> do
+    fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
+    point <- pointBetweenStrings fileContents before after
+    let tree = parse fileContents file
+    newContents <- f tree point
+    case newContents of
+      Left x  -> assertFailure (unpack x)
+      Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
+
 manualPushArgumentTestData :: [(FilePath, Text, Text)]
 manualPushArgumentTestData =
   [ ("MoveArg.agda" , "stuff : ( num", "ber : Nat) -> Bool -> Bool")
@@ -192,18 +207,8 @@ manualFailingPushTestData =
   ,("MoveArg.agda", "sameName : (", "A : Set) -> {A : Set} -> A -> A")
   ]
 
-
-
 manualPushArgumentTest :: (FilePath, Text, Text) -> TestTree
-manualPushArgumentTest (file , before, after) =
-  localOption (mkTimeout 5000000) $ testCaseSteps file $ \step -> do
-    fileContents <- IO.readFile $ inputDirectory ++ "/" ++ file
-    point <- pointBetweenStrings fileContents before after
-    let tree = parse fileContents file
-    newContents <- pushArgument tree point
-    case newContents of
-      Left x  -> assertFailure (unpack x)
-      Right y -> typecheckingOracle (prettyPrint y tree fileContents) file
+manualPushArgumentTest = manualOnePointTest pushArgument
 
 manualFailingPushTest :: (FilePath, Text, Text) -> TestTree
 manualFailingPushTest (file, before, after) = do
@@ -217,6 +222,15 @@ manualFailingPushTest (file, before, after) = do
       Right y ->  do
                    --typecheckingOracle (prettyPrint y tree fileContents) file
                    assertFailure "Failing push test passed."
+
+manualExplicitImplicitConversionTestData :: [(FilePath, Text, Text)]
+manualExplicitImplicitConversionTestData =
+    [("Conversion.agda", "nonDependent : Nat -> Na", "t -> Nat")
+    ,("Conversion.agda", "dependent : {A : Set} -> A", " -> A")
+    ]
+
+manualExplicitImplicitConversionTest :: (FilePath, Text, Text) -> TestTree
+manualExplicitImplicitConversionTest = manualOnePointTest toggleExplicitness
 
 functionExtractionTestData :: [(FilePath, Text, Text, Text)]
 functionExtractionTestData =

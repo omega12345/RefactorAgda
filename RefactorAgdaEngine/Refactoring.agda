@@ -18,6 +18,7 @@ open import IO.Primitive using (IO)
 open import Typing
 open import Data.Bool
 open import ExtractFunction using (extract)
+open import ExplicitImplicitConversion
 
 doNothing : List ParseTree -> List ParseTree
 doNothing x = x
@@ -80,6 +81,18 @@ pushArgument : List ParseTree -> ℕ -> IO (String ⊎ List ParseTree)
 pushArgument program point = runScopeState (pushArgument' program point) newEnv
 
 {-# COMPILE GHC pushArgument as pushArgument #-}
+
+
+changeExplicitness' : List ParseTree -> ℕ -> ScopeState (List ParseTree)
+changeExplicitness' program point = do
+  scoped <- scopeParseTreeList program
+  funcID , argNumber <- getFuncIdAndArgNumber scoped point
+  convert scoped funcID argNumber
+
+toggleExplicitness : List ParseTree -> ℕ -> IO (String ⊎ List ParseTree)
+toggleExplicitness program point = runScopeState (changeExplicitness' program point) newEnv
+
+{-# COMPILE GHC toggleExplicitness as toggleExplicitness #-}
 
 
 extractFunction : List ParseTree -> ℕ -> ℕ -> String -> IO (String ⊎ List ParseTree)

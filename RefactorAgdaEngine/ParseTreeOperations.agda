@@ -27,13 +27,16 @@ listToExpression (head₁ ∷ x ∷ tail₁) =
 listToType : List⁺ Expr -> Expr
 listToType (head₁ ∷ []) = head₁
 listToType (head₁ ∷ y ∷ tail) =
-  functionApp head₁ (listToType (y ∷ tail)) {true} 
+  functionApp head₁ (listToType (y ∷ tail)) {true}
 
 emptyRange : Range
 emptyRange = range 0 0
 
 newHole : Expr
 newHole = hole {""} {emptyRange} {[]} {[]}
+
+newUnderscore : Expr
+newUnderscore = underscore {emptyRange} {[]} {[]}
 
 sameId : Identifier -> Identifier -> Bool
 sameId (identifier name isInRange scope declaration) (identifier name₁ isInRange₁ scope₁ declaration₁)

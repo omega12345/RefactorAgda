@@ -8,7 +8,7 @@ make
 
 cabal install --enable-tests
 
-The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error "Could not find module ‘Control.Monad.Combinators.Expr’", but that's okay.
+The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error in a Haskell module, but that's okay.
 
 <h1>RefactorAgda</h1>
 
@@ -18,9 +18,11 @@ This project is a refactoring tool for a subset of Agda called Baby-Agda. This s
 
 Rename (ctrl-k ctrl-r)
 
-Push (reorder) function arguments (ctrl-k ctrl-p)
+Push (reorder) function argument (ctrl-k ctrl-p)
 
-Function extraction (ctrl-k ctrl-e)
+Extract function (ctrl-k ctrl-e)
+
+Toggle explicitness of an argument (ctrl-k ctrl-t)
 
 <h1> Missing a refactoring? </h1>
 Feel free to open an issue if a desired refactoring is not on this list.

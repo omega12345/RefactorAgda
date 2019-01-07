@@ -12,6 +12,10 @@
       {
         "label": "Push argument",
         "command": "refactor-agda:push-argument"
+      },
+      {
+        "label": "Toggle explicitness",
+        "command": "refactor-agda:toggle-explicitness"
       }
     ]
   },
@@ -33,6 +37,10 @@
             {
               "label": "Push argument",
               "command": "refactor-agda:push-argument"
+            },
+            {
+              "label": "Toggle explicitness",
+              "command": "refactor-agda:toggle-explicitness"
             }
           ]
         }

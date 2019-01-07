@@ -6,7 +6,7 @@
   "keywords": [
   ],
   "activationCommands": {
-    "atom-workspace": ["refactor-agda:rename", "refactor-agda:push-argument", "refactor-agda:extract-function"]
+    "atom-workspace": ["refactor-agda:rename", "refactor-agda:push-argument", "refactor-agda:extract-function", "refactor-agda:toggle-explicitness"]
   },
   "repository": "https://github.com/atom/refactor-agda",
   "license": "BSD3",
