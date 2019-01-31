@@ -123,13 +123,13 @@ openImport sc = try openAndImport <|> try importOnly <|> openOnly
                       c <- allCommentsUntilNonComment
                       sc
                       name <- qualifiedName
-                      return OpenImport { opened = True, imported = False, moduleName = name, comments = [c , []]}
+                      return OpenImport { opened = True, imported = False, moduleName = name, comments = [c , []], range = undefined }
         importOnly = do
                             string "import"
                             c <- allCommentsUntilNonComment
                             sc
                             name <- qualifiedName
-                            return OpenImport { opened = False, imported = True, moduleName = name, comments = [[] , c]}
+                            return OpenImport { opened = False, imported = True, moduleName = name, comments = [[] , c], range = undefined }
         openAndImport = do
           string "open"
           c <- allCommentsUntilNonComment
@@ -139,7 +139,9 @@ openImport sc = try openAndImport <|> try importOnly <|> openOnly
           sc
           name <- qualifiedName
           return OpenImport { opened = True, imported = True, moduleName = name
-                    , comments = [c , d]}
+                    , comments = [c , d]
+                    , range = undefined
+                    }
 
 
 parseModuleName :: Parser () -> Parser ParseTree
@@ -151,7 +153,7 @@ parseModuleName sc = do
   d <- allCommentsUntilNonComment
   sc
   string "where"
-  return ModuleName {moduleName = name {commentsBefore = c , commentsAfter = d}}
+  return ModuleName {moduleName = name {commentsBefore = c , commentsAfter = d}, range = undefined}
 
 -- Function definition parsing
 functionDefinition :: Parser () -> Parser ParseTree
@@ -266,7 +268,7 @@ hole :: Parser Expr
 hole = questionMark <|> do
       a <- getOffset
       c <- flatNestedStructure "{!" "!}"
-        (\x -> Hole {textInside = x , commentsBef = [] , commentsAf = []})
+        (\x -> Hole {textInside = x , commentsBef = [] , commentsAf = [], position = undefined})
          textInside
       z <- getOffset
       af <- allCommentsUntilNonComment
@@ -421,7 +423,7 @@ multiLineComment = do
     _ -> do
           a <- getOffset
           c <- flatNestedStructure "{-" "-}"
-                    (\x -> Comment {content = x })
+                    (\x -> Comment {content = x, codePos = undefined, isMultiLine = undefined })
                     content
           z <- getOffset
           return $ c {codePos = makeRange a z , isMultiLine = True}
