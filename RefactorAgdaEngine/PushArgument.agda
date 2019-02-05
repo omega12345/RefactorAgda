@@ -18,23 +18,42 @@ open import Relation.Nullary
 open import Data.Nat.Properties
 open import Data.String using (_++_)
 
-
+data ArgType : Set where
+  explicit : ArgType
+  present : ArgType
+  absent : ArgType
+-- if matches is false then an expected implicit argument has been omitted
+matches : Expr -> Expr -> ArgType
+matches expectedType argument
+  with isImplicit expectedType | isImplicit argument
+matches expectedType argument | false | false = explicit
+--expected explicit but found implicit, actually an error
+matches expectedType argument | false | true = explicit
+matches expectedType argument | true | false = absent
+matches expectedType argument | true | true = present
 -- n is the argument to be pushed, so there must be another argument to switch
 -- it with
 makeIns : {n : ℕ} -> Vec Expr (suc n) -> Fin n -> (List Expr -> List Expr)
-makeIns (x ∷ x₁) zero [] = []
-makeIns (implicit x ∷ implicit x₁ ∷ x₂) zero (implicit y ∷ []) = implicit (underscore {emptyRange} {[]} {[]}) ∷ implicit y ∷ []
-makeIns (implicit x ∷ x₁) zero (implicit y ∷ x₂ ∷ list) = x₂ ∷ implicit y ∷ list
--- expecting implicit and getting explicit, i.e. argument to be moved
--- isn't specified.
-makeIns (implicit x ∷ x₁) zero (y ∷ list) = y ∷ list
-makeIns (x ∷ x₁) zero (x₂ ∷ []) = newHole ∷ []
-makeIns (x ∷ x₁) zero (x₂ ∷ x₃ ∷ list) = x₃ ∷ x₂ ∷ list
-makeIns (x ∷ x₁) (suc n) [] = []
-makeIns (implicit x ∷ x₁) (suc n) (implicit x₂ ∷ list) =
-  implicit x₂ ∷ makeIns x₁ n list
-makeIns (implicit x ∷ x₁) (suc n) (x₂ ∷ list) = makeIns x₁ n list
-makeIns (x ∷ x₁) (suc n) (x₂ ∷ list) = x₂ ∷ makeIns x₁ n list
+makeIns (x ∷ x₁) _ [] = []
+makeIns (x ∷ y ∷ list) zero (z ∷ []) with matches x z
+makeIns (x ∷ y ∷ list) zero (z ∷ []) | explicit = newHole ∷ []
+makeIns (x ∷ y ∷ list) zero (z ∷ []) | present = implicit newHole ∷ []
+makeIns (x ∷ y ∷ list) zero (z ∷ []) | absent with matches y z
+makeIns (x ∷ y ∷ list) zero (z ∷ []) | absent | explicit = newHole ∷ []
+makeIns (x ∷ y ∷ list) zero (z ∷ []) | absent | present = z ∷ []
+makeIns (x ∷ y ∷ list) zero (z ∷ []) | absent | absent = z ∷ []
+makeIns (a ∷ b ∷ list) zero (y ∷ z ∷ list2) with
+  matches a y
+makeIns (a ∷ b ∷ list) zero (y ∷ z ∷ list2) | absent = y ∷ z ∷ list2
+makeIns (a ∷ b ∷ list) zero (y ∷ z ∷ list2) | _ with matches b z
+makeIns (a ∷ b ∷ list) zero (y ∷ z ∷ list2) | _ | explicit = z ∷ y ∷ list2
+makeIns (a ∷ b ∷ list) zero (y ∷ z ∷ list2) | _ | present = z ∷ y ∷ list2
+makeIns (a ∷ b ∷ list) zero (y ∷ z ∷ list2) | _ | absent = y ∷ z ∷ list2
+makeIns (x ∷ x₁) (suc n) (y ∷ list) with matches x y
+makeIns (x ∷ x₁) (suc n) (y ∷ list) | explicit = y ∷ makeIns x₁ n list
+makeIns (x ∷ x₁) (suc n) (y ∷ list) | present = y ∷ makeIns x₁ n list
+makeIns (x ∷ x₁) (suc n) (y ∷ list) | absent = makeIns x₁ n (y ∷ list)
+
 
 makeInstruction : TypeSignature -> ℕ -> (makeIns : {n : ℕ} -> Vec Expr (suc n) -> Fin n -> (List Expr -> List Expr)) -> ScopeState (List⁺ Expr -> List⁺ Expr)
 makeInstruction (typeSignature funcName funcType) argNo f

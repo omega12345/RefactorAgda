@@ -25,3 +25,15 @@ sameName set a = a
 
 nonDep : (A : Set) -> (B : Set) -> B -> B
 nonDep set1 set2 b = b
+
+data List (A : Set) : Nat -> Set where
+    nil : List A 0
+    cons : {n : Nat} -> A -> List A n -> List A (suc n)
+
+map : {n : Nat} -> {A : Set} -> {B : Set} -> (A -> B) -> List A n -> List B n
+map f nil = nil
+map f (cons x xs) = cons (f x) (map f xs)
+
+map2 : {A : Set} -> {n : Nat} -> {B : Set} -> (A -> B) -> List A n -> List B n
+map2 f nil = nil
+map2 f (cons x xs) = cons (f x) (map2 f xs)

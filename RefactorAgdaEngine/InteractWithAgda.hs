@@ -1,17 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InteractWithAgda where
-import ParseTree
-import System.Process
-import System.IO
-import System.Directory
-import PrettyPrinter
-import Data.Text
-import System.FilePath.Posix
-import Text.Megaparsec.Char
-import Parser
-import Text.Megaparsec as M
-import Control.Monad
-import Data.List
+import           Control.Monad
+import           Data.List
+import           Data.Text
+import           Parser
+import           ParseTree
+import           PrettyPrinter
+import           System.Directory
+import           System.FilePath.Posix
+import           System.IO
+import           System.Process
+import           System.Timeout
+import           Text.Megaparsec       as M
+import           Text.Megaparsec.Char
 
 output :: Text -> IO ()
 output s = putStrLn $ unpack s
@@ -52,9 +53,6 @@ readUntilLast h = do
 readUntilInfoAction :: Handle -> IO String
 readUntilInfoAction h = do
   line <- hGetLine h
-  putStrLn "in readUntilLast"
-  putStrLn line
-  hFlush stdout
   if Data.List.isPrefixOf "(agda2-info-action" line
     then return line
     else readUntilInfoAction h
@@ -66,11 +64,10 @@ getEnvironment program holeNumber filePath =
       hPutStrLn hin $ "IOTCM \"" ++ file ++ "\" None Indirect (Cmd_context Simplified " ++ show holeNumber ++ " noRange [])"
 
       hFlush hin
-      answer3 <- readUntilInfoAction hout
-      putStrLn $ "last line from getEnvironment " ++ answer3
-      let env = findEnvironment answer3
-      putStrLn $ "Environment found" ++ show env
-      return env
+      answer3 <- timeout 200000 $ readUntilInfoAction hout
+      case answer3 of
+        Nothing -> error "Agda communication failure in getEnvironment"
+        Just x  -> return $ findEnvironment x
 
 getTypes :: [ParseTree] -> Integer ->  [Expr] -> Text -> IO [Expr]
 getTypes program holeNumber exps filePath =
@@ -83,16 +80,16 @@ getType hin hout filename holeNumber expr = do
   putStrLn $ "Expression to get type from: " ++ show expr
   hPutStrLn hin $ "IOTCM \"" ++ filename ++ "\" None Indirect (Cmd_infer Simplified " ++ show holeNumber ++ " noRange \"" ++ exprString ++ "\")"
   hFlush hin
-  hGetLine hout
-  answer3 <- System.IO.hGetLine hout --(agda2-info-action "*Inferred Type*" "Nat" nil)
+  answer3 <- timeout 200000 $ readUntilInfoAction hout --(agda2-info-action "*Inferred Type*" "Nat" nil)
   --(agda2-info-action "*Inferred Type*" "a → a" nil)
   --putStrLn answer3
-
-  return $ findType answer3
+  case answer3 of
+    Just x -> return $ findType x
+    _      -> error "Agda communication failed in getType"
 
 findType :: String -> Expr
 findType s = case M.parse understandType "in InteractWithAgda" (pack s) of
-                    Left x -> error $ errorBundlePretty x
+                    Left x  -> error $ errorBundlePretty x
                     Right y -> y
 
 
@@ -104,7 +101,7 @@ understandType = do
 
 findEnvironment :: String -> [TypeSignature]
 findEnvironment s = case M.parse understandEnvironment "in InteractWithAgda" (pack s) of
-                    Left x -> error $ errorBundlePretty x
+                    Left x  -> error $ errorBundlePretty x
                     Right y -> y
 
 --example (agda2-info-action "*Context*" "x : ℕ\ny : ℕ" nil)

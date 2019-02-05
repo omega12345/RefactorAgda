@@ -60,3 +60,8 @@ x doesNotAppearInExp functionApp y y₁ =
      (x doesNotAppearInExp y₁)
 x doesNotAppearInExp implicit x1 = x doesNotAppearInExp x1
 x doesNotAppearInExp underscore = true
+
+isImplicit : Expr -> Bool
+isImplicit (implicit e) = true
+isImplicit (namedArgument arg {explicit}) = not explicit
+isImplicit x = false

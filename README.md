@@ -24,5 +24,7 @@ Extract function (ctrl-k ctrl-e)
 
 Toggle explicitness of an argument (ctrl-k ctrl-t)
 
+Re-case-split (ctrl-k ctrl-c)  (fix errors of the type "incomplete pattern matching")
+
 <h1> Missing a refactoring? </h1>
 Feel free to open an issue if a desired refactoring is not on this list.

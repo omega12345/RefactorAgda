@@ -4,6 +4,7 @@ import           Data.Text.IO             as IO
 import           MAlonzo.Code.Refactoring
 import           Parser
 import           PrettyPrinter
+import           ReCaseSplit
 import           System.Environment
 
 main :: IO ()
@@ -51,5 +52,9 @@ main = do
               case newContents of
                 Left x -> error $ "start of RefactorAgda output" ++ unpack x
                 Right y -> IO.putStrLn $ Data.Text.concat ["start of RefactorAgda output", prettyPrint y tree fileContents]
+           ["reCaseSplit"] -> do
+              result <- reCaseSplit filename
+              IO.putStrLn $ Data.Text.concat ["start of RefactorAgda output",
+                  pack result]
            _ -> error $ "start of RefactorAgda output" ++ "Wrong number of arguments" ++ show rest
       _ -> error $ "start of RefactorAgda output" ++ "Not even a file name"

@@ -16,6 +16,10 @@
       {
         "label": "Toggle explicitness",
         "command": "refactor-agda:toggle-explicitness"
+      },
+      {
+        "label": "Re-casesplit",
+        "command": "refactor-agda:re-case-split"
       }
     ]
   },
@@ -37,6 +41,10 @@
             {
               "label": "Push argument",
               "command": "refactor-agda:push-argument"
+            },
+            {
+              "label": "Re-casesplit",
+              "command": "refactor-agda:re-case-split"
             },
             {
               "label": "Toggle explicitness",

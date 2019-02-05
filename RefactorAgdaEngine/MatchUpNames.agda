@@ -15,7 +15,7 @@ matchUpExpr (ident identifier₁) = do
 matchUpExpr (functionApp x x₁ {b} ) = do
   r1 <- matchUpExpr x
   r2 <- matchUpExpr x₁
-  return $ functionApp r1 r2 {b} 
+  return $ functionApp r1 r2 {b}
 matchUpExpr (namedArgument arg {b} {bef} {aft}) = do
   x <- matchUpSignature arg
   return $ namedArgument x {b} {bef} {aft}

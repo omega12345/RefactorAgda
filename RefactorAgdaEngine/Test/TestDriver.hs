@@ -198,6 +198,9 @@ manualPushArgumentTestData =
   [ ("MoveArg.agda" , "stuff : ( num", "ber : Nat) -> Bool -> Bool")
   ,("MoveArg.agda" , "dep : (A : Set) -> (B", " : A) -> Bool -> Bool")
   ,("MoveArg.agda", "nonDep : (A", " : Set) -> (B : Set) -> B -> B")
+  ,("MoveArg.agda", "map : {", "n : Nat} -> {A : Set} -> {B : Set} -> (A -> B) -> List A n -> List B n")
+  ,("MoveArg.agda", "map : {n : Nat} -> {A", " : Set} -> {B : Set} -> (A -> B) -> List A n -> List B n")
+  , ("MoveArg.agda", "map2 : {A : Set} -> {n : Nat} -> {B : Set} -> (A" ," -> B) -> List A n -> List B n")
   ]
 
 manualFailingPushTestData :: [(FilePath, Text, Text)]
@@ -205,6 +208,7 @@ manualFailingPushTestData =
   [ ("MoveArg.agda" , "dep : (", "A : Set) -> (B : A) -> Bool -> Bool")
   ,("MoveArg.agda" ,"unnamedDep : (A", " : Set) -> A -> Bool -> Bool")
   ,("MoveArg.agda", "sameName : (", "A : Set) -> {A : Set} -> A -> A")
+  ,("MoveArg.agda", "map : {n : Nat} -> {A : Set} -> {B : S", "et} -> (A -> B) -> List A n -> List B n")
   ]
 
 manualPushArgumentTest :: (FilePath, Text, Text) -> TestTree
