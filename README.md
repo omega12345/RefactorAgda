@@ -1,5 +1,6 @@
 This tool has been tested with ghc version 8.4.3
 
+
 <h1>Installation instructions</h1>
 To be able to try the Atom package, you should either put the downloaded folder itself into ~/.atom/packages or put a folder alias there. Go into the downloaded folder in the terminal and run:
 
@@ -8,7 +9,7 @@ make
 
 cabal install --enable-tests
 
-The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4. It will end with an error in a Haskell module, but that's okay.
+The makefile contains instructions for compiling the Agda files. To execute it, you will need Agda 2.5.4 and agda-stdlib 0.16 . It will end with an error in a Haskell module, but that's okay.
 
 <h1>RefactorAgda</h1>
 
